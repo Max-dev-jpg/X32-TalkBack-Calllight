@@ -66,7 +66,7 @@ void OutputController::loop() {
 
         case FLASH_STROBE: {
             // Strobe: very short on pulse
-            uint32_t period = max((uint32_t)50, Config.flashSpeedMs);
+            uint32_t period = max((uint32_t)50, (uint32_t)Config.flashSpeedMs);
             uint32_t onTime = period / 8;   // 12.5% duty cycle
             uint32_t t = now % period;
             setPinState(t < onTime);

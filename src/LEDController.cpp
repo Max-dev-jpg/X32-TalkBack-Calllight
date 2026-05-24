@@ -112,7 +112,7 @@ void LEDController::updateStrip() {
 
         case FLASH_PULSE: {
             // Sine-wave brightness ramp (full period = flashSpeedMs)
-            uint32_t period = max((uint32_t)100, Config.flashSpeedMs);
+            uint32_t period = max((uint32_t)100, (uint32_t)Config.flashSpeedMs);
             float phase = (float)(now % period) / (float)period;  // 0.0-1.0
             float bright = (sinf(phase * 2.0f * M_PI - M_PI / 2.0f) + 1.0f) * 0.5f;
             uint32_t col = scaledColor(bright);
@@ -123,7 +123,7 @@ void LEDController::updateStrip() {
         }
 
         case FLASH_STROBE: {
-            uint32_t period = max((uint32_t)50, Config.flashSpeedMs);
+            uint32_t period = max((uint32_t)50, (uint32_t)Config.flashSpeedMs);
             uint32_t onTime = period / 8;
             bool on = ((now % period) < onTime);
             if (on != _ledState) {

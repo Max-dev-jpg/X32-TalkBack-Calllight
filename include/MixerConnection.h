@@ -31,7 +31,7 @@ private:
     void sendXRemote();
     void processIncoming();
 
-    WiFiUdp  _udp;
+    WiFiUDP  _udp;
     bool     _udpOpen      = false;
     bool     _connected    = false;
     float    _currentLevel = 0.0f;

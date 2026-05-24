@@ -480,6 +480,72 @@ button:hover   { opacity: 0.85; }
 .log-fill { height: 100%; background: var(--accent); border-radius: 100px; }
 .log-trig { color: var(--warn); flex-shrink: 0; }
 
+/* ── Talkback indicators ─────────────────────────────────────────────────── */
+.tb-status-row {
+  display: flex;
+  gap: 2rem;
+  padding: 0.5rem 0;
+}
+
+.tb-badge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tb-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition: background 0.25s, border-color 0.25s, color 0.25s, box-shadow 0.25s;
+}
+
+.tb-badge.active {
+  background: #2a1400;
+  border-color: var(--warn);
+  color: var(--warn);
+  box-shadow: 0 0 14px rgba(255,152,0,0.35);
+}
+
+.tb-badge-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* Collapsible talkback sections */
+#tb-engine-fields {
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height 0.35s;
+}
+#tb-engine-fields.hidden { max-height: 0; }
+
+#tb-advanced-section {
+  overflow: hidden;
+  max-height: 2000px;
+  transition: max-height 0.4s;
+}
+#tb-advanced-section.hidden { max-height: 0; overflow: hidden; }
+
+#tb-solo-section {
+  overflow: hidden;
+  max-height: 500px;
+  transition: max-height 0.3s;
+  margin-top: 0.75rem;
+}
+#tb-solo-section.hidden { max-height: 0; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-direction: column; align-items: flex-start; }

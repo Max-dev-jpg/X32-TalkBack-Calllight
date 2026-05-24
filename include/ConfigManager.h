@@ -49,6 +49,18 @@ struct DeviceConfig {
     uint8_t  ledR;
     uint8_t  ledG;
     uint8_t  ledB;
+
+    // ── Talkback Engine ───────────────────────────────────────────────────────
+    bool     tbEnabled;       // enable the talkback engine
+    uint8_t  tbMonitor;       // TB_MONITOR_A / _B / _BOTH
+    bool     tbClearSolo;     // send /-action/clearsolo when TB activates
+    bool     tbSoloEnabled;   // send /-stat/solosw/{id} commands
+    uint8_t  tbSoloType;      // channel type (CH_INPUT/BUS/MATRIX/DCA/AUXIN)
+    uint8_t  tbSoloNumber;    // 1-based channel number
+    char     tbOnCmd1[64];    // custom OSC address sent on TB_ON  (int=1)
+    char     tbOnCmd2[64];    // 2nd custom OSC address on TB_ON
+    char     tbOffCmd1[64];   // custom OSC address sent on TB_OFF (int=0)
+    char     tbOffCmd2[64];   // 2nd custom OSC address on TB_OFF
 };
 
 // =============================================================================

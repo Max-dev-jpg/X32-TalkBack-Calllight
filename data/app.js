@@ -14,6 +14,26 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
+// ── Talkback section visibility ───────────────────────────────────────────────
+const tbEnabledCb     = document.getElementById('tb-enabled');
+const tbEngineFields  = document.getElementById('tb-engine-fields');
+const tbAdvSection    = document.getElementById('tb-advanced-section');
+const tbSoloEnabledCb = document.getElementById('tb-solo-enabled');
+const tbSoloSection   = document.getElementById('tb-solo-section');
+
+function updateTBVisibility() {
+  const on = tbEnabledCb.checked;
+  tbEngineFields.classList.toggle('hidden', !on);
+  tbAdvSection.classList.toggle('hidden', !on);
+}
+function updateTBSoloVisibility() {
+  tbSoloSection.classList.toggle('hidden', !tbSoloEnabledCb.checked);
+}
+tbEnabledCb.addEventListener('change', updateTBVisibility);
+tbSoloEnabledCb.addEventListener('change', updateTBSoloVisibility);
+updateTBVisibility();
+updateTBSoloVisibility();
+
 // ── DHCP toggle ──────────────────────────────────────────────────────────────
 const useDhcpCb = document.getElementById('use-dhcp');
 const staticFields = document.getElementById('static-ip-fields');
@@ -116,6 +136,8 @@ async function loadConfig() {
     document.getElementById('osc-path-preview').textContent = c.oscPath || '—';
 
     updateDhcpVisibility();
+    updateTBVisibility();
+    updateTBSoloVisibility();
   } catch(e) {
     console.warn('Config load failed:', e);
   }
@@ -148,7 +170,7 @@ function bindForm(formId) {
     setTimeout(loadConfig, 800);
   });
 }
-['form-network', 'form-mixer', 'form-trigger', 'form-output'].forEach(bindForm);
+['form-network', 'form-mixer', 'form-trigger', 'form-output', 'form-talkback'].forEach(bindForm);
 
 // ── Live status updates via WebSocket ────────────────────────────────────────
 let ws = null;
@@ -249,6 +271,29 @@ function updateStatus(d) {
     toolApLink.href = 'http://' + d.apIP;
     toolApLink.textContent = 'http://' + d.apIP;
   }
+
+  // Talkback state
+  const tbEnabled = !!d.tbEnabled;
+  const tbA = !!d.tbA;
+  const tbB = !!d.tbB;
+
+  // Status tab: small cards
+  const stTbA = document.getElementById('st-tb-a');
+  const stTbB = document.getElementById('st-tb-b');
+  if (stTbA) {
+    stTbA.textContent = tbEnabled ? (tbA ? 'ACTIVE' : 'Idle') : 'Disabled';
+    stTbA.style.color = (tbEnabled && tbA) ? 'var(--warn)' : 'var(--text-dim)';
+  }
+  if (stTbB) {
+    stTbB.textContent = tbEnabled ? (tbB ? 'ACTIVE' : 'Idle') : 'Disabled';
+    stTbB.style.color = (tbEnabled && tbB) ? 'var(--warn)' : 'var(--text-dim)';
+  }
+
+  // Talkback tab: large circular indicators
+  const tbIndA = document.getElementById('tb-ind-a');
+  const tbIndB = document.getElementById('tb-ind-b');
+  if (tbIndA) tbIndA.classList.toggle('active', tbEnabled && tbA);
+  if (tbIndB) tbIndB.classList.toggle('active', tbEnabled && tbB);
 }
 
 function setBadge(id, condition, okClass, label, forceBadClass) {

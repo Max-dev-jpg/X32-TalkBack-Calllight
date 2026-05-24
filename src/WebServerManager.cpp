@@ -9,6 +9,7 @@
 #include "TriggerLogic.h"
 #include "OutputController.h"
 #include "LEDController.h"
+#include "TalkbackEngine.h"
 #include "config.h"
 #include <Arduino.h>
 #include <Update.h>
@@ -36,6 +37,9 @@ static String buildStatusJSON() {
     doc["uptime"]         = millis() / 1000;
     doc["freeHeap"]       = ESP.getFreeHeap();
     doc["firmware"]       = FIRMWARE_VERSION;
+    doc["tbEnabled"]      = Config.tbEnabled;
+    doc["tbA"]            = TalkbackEngine::instance().isTalkbackAActive();
+    doc["tbB"]            = TalkbackEngine::instance().isTalkbackBActive();
 
     String out;
     serializeJson(doc, out);
@@ -88,6 +92,18 @@ static String buildConfigJSON() {
     doc["ledR"]           = c.ledR;
     doc["ledG"]           = c.ledG;
     doc["ledB"]           = c.ledB;
+
+    // Talkback Engine
+    doc["tbEnabled"]      = c.tbEnabled;
+    doc["tbMonitor"]      = c.tbMonitor;
+    doc["tbClearSolo"]    = c.tbClearSolo;
+    doc["tbSoloEnabled"]  = c.tbSoloEnabled;
+    doc["tbSoloType"]     = c.tbSoloType;
+    doc["tbSoloNumber"]   = c.tbSoloNumber;
+    doc["tbOnCmd1"]       = c.tbOnCmd1;
+    doc["tbOnCmd2"]       = c.tbOnCmd2;
+    doc["tbOffCmd1"]      = c.tbOffCmd1;
+    doc["tbOffCmd2"]      = c.tbOffCmd2;
 
     String out;
     serializeJson(doc, out);
@@ -142,6 +158,18 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("ledR"))          c.ledR          = doc["ledR"];
     if (doc.containsKey("ledG"))          c.ledG          = doc["ledG"];
     if (doc.containsKey("ledB"))          c.ledB          = doc["ledB"];
+
+    // Talkback Engine
+    if (doc.containsKey("tbEnabled"))     c.tbEnabled     = doc["tbEnabled"];
+    if (doc.containsKey("tbMonitor"))     c.tbMonitor     = doc["tbMonitor"];
+    if (doc.containsKey("tbClearSolo"))   c.tbClearSolo   = doc["tbClearSolo"];
+    if (doc.containsKey("tbSoloEnabled")) c.tbSoloEnabled = doc["tbSoloEnabled"];
+    if (doc.containsKey("tbSoloType"))    c.tbSoloType    = doc["tbSoloType"];
+    if (doc.containsKey("tbSoloNumber"))  c.tbSoloNumber  = doc["tbSoloNumber"];
+    if (doc.containsKey("tbOnCmd1"))  strlcpy(c.tbOnCmd1,  doc["tbOnCmd1"],  sizeof(c.tbOnCmd1));
+    if (doc.containsKey("tbOnCmd2"))  strlcpy(c.tbOnCmd2,  doc["tbOnCmd2"],  sizeof(c.tbOnCmd2));
+    if (doc.containsKey("tbOffCmd1")) strlcpy(c.tbOffCmd1, doc["tbOffCmd1"], sizeof(c.tbOffCmd1));
+    if (doc.containsKey("tbOffCmd2")) strlcpy(c.tbOffCmd2, doc["tbOffCmd2"], sizeof(c.tbOffCmd2));
 
     return true;
 }
@@ -259,6 +287,7 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
             OutputController::instance().begin();
             LEDController::instance().begin();
             MixerConnection::instance().reconnect();
+            TalkbackEngine::instance().begin();
             Serial.println("[Web] Config updated.");
         } else {
             Serial.println("[Web] Config parse failed!");

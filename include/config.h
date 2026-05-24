@@ -53,6 +53,7 @@
 #define CH_BUS     1
 #define CH_MATRIX  2
 #define CH_DCA     3
+#define CH_AUXIN   4   // Aux inputs (AuxIn 1-8)
 
 #define SIG_FADER  0   // continuous 0.0-1.0
 #define SIG_METER  1   // meter level 0.0-1.0  (subscribed via /xremote)
@@ -85,3 +86,30 @@
 // ── Reconnect intervals ───────────────────────────────────────────────────────
 #define WIFI_RECONNECT_INTERVAL_MS  10000
 #define MIXER_RECONNECT_INTERVAL_MS  5000
+
+// ── Talkback Engine ───────────────────────────────────────────────────────────
+// OSC paths for talkback button state on X32/M32
+#define TB_PATH_A            "/-stat/talk/A"
+#define TB_PATH_B            "/-stat/talk/B"
+#define TB_CLEARSOLO_PATH    "/-action/clearsolo"
+#define TB_SOLOSW_BASE       "/-stat/solosw/"   // append 1-based ID
+#define TB_POLL_INTERVAL_MS  100   // how often to poll talkback state
+#define TB_RX_PORT           10025 // separate listen port for TalkbackEngine
+
+// Talkback monitor selection
+#define TB_MONITOR_A    0
+#define TB_MONITOR_B    1
+#define TB_MONITOR_BOTH 2
+
+// Solo ID ranges (X32 solo bus numbering)
+// Input CH  : 1-32
+// AuxIn     : 33-40
+// FX Ret    : 41-48
+// Bus       : 49-64
+// Matrix    : 65-70
+// DCA       : 73-80
+#define SOLO_OFFSET_INPUT   0
+#define SOLO_OFFSET_AUXIN   32
+#define SOLO_OFFSET_BUS     48
+#define SOLO_OFFSET_MATRIX  64
+#define SOLO_OFFSET_DCA     72

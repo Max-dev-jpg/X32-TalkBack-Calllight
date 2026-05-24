@@ -57,6 +57,18 @@ bool StorageManager::save(const DeviceConfig& c) {
     _prefs.putUChar ("flash_mode", c.flashMode);
     _prefs.putUShort("flash_spd",  c.flashSpeedMs);
 
+    // Talkback Engine
+    _prefs.putBool  ("tb_en",      c.tbEnabled);
+    _prefs.putUChar ("tb_mon",     c.tbMonitor);
+    _prefs.putBool  ("tb_clrsolo", c.tbClearSolo);
+    _prefs.putBool  ("tb_solo_en", c.tbSoloEnabled);
+    _prefs.putUChar ("tb_solo_t",  c.tbSoloType);
+    _prefs.putUChar ("tb_solo_n",  c.tbSoloNumber);
+    _prefs.putString("tb_on1",     c.tbOnCmd1);
+    _prefs.putString("tb_on2",     c.tbOnCmd2);
+    _prefs.putString("tb_off1",    c.tbOffCmd1);
+    _prefs.putString("tb_off2",    c.tbOffCmd2);
+
     // LED
     _prefs.putUChar ("led_pin",    c.ledPin);
     _prefs.putUShort("led_cnt",    c.ledCount);
@@ -114,6 +126,18 @@ bool StorageManager::load(DeviceConfig& c) {
     c.outputInvert  = _prefs.getBool  ("out_inv",    c.outputInvert);
     c.flashMode     = _prefs.getUChar ("flash_mode", c.flashMode);
     c.flashSpeedMs  = _prefs.getUShort("flash_spd",  c.flashSpeedMs);
+
+    // Talkback Engine
+    c.tbEnabled     = _prefs.getBool  ("tb_en",      c.tbEnabled);
+    c.tbMonitor     = _prefs.getUChar ("tb_mon",     c.tbMonitor);
+    c.tbClearSolo   = _prefs.getBool  ("tb_clrsolo", c.tbClearSolo);
+    c.tbSoloEnabled = _prefs.getBool  ("tb_solo_en", c.tbSoloEnabled);
+    c.tbSoloType    = _prefs.getUChar ("tb_solo_t",  c.tbSoloType);
+    c.tbSoloNumber  = _prefs.getUChar ("tb_solo_n",  c.tbSoloNumber);
+    strlcpy(c.tbOnCmd1,  _prefs.getString("tb_on1",  c.tbOnCmd1).c_str(),  sizeof(c.tbOnCmd1));
+    strlcpy(c.tbOnCmd2,  _prefs.getString("tb_on2",  c.tbOnCmd2).c_str(),  sizeof(c.tbOnCmd2));
+    strlcpy(c.tbOffCmd1, _prefs.getString("tb_off1", c.tbOffCmd1).c_str(), sizeof(c.tbOffCmd1));
+    strlcpy(c.tbOffCmd2, _prefs.getString("tb_off2", c.tbOffCmd2).c_str(), sizeof(c.tbOffCmd2));
 
     // LED
     c.ledPin        = _prefs.getUChar ("led_pin",    c.ledPin);

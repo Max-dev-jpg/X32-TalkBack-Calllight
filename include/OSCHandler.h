@@ -30,6 +30,10 @@ public:
                                  const String& strArg,
                                  uint8_t* buf, size_t bufLen);
 
+    // Build an OSC message with a single int32 argument (for solo on/off etc.)
+    static size_t buildIntMsg(const String& address, int32_t value,
+                              uint8_t* buf, size_t bufLen);
+
     // Parse a raw UDP buffer into an OSCMessage struct
     static OSCMessage parse(const uint8_t* buf, size_t len);
 

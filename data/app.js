@@ -168,7 +168,11 @@ function connectWS() {
   ws.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
-      updateStatus(d);
+      if (d.type === 'osc') {
+        updateOSCMonitor(d);
+      } else {
+        updateStatus(d);
+      }
     } catch(err) { /* ignore */ }
   };
 
@@ -277,6 +281,82 @@ document.getElementById('form-mixer').addEventListener('change', () => {
     } catch(e) {}
   }, 400);
 });
+
+// ── OSC Monitor ───────────────────────────────────────────────────────────────
+let monitorRunning = false;
+let monitorMin = null, monitorMax = null, monitorSum = 0, monitorCount = 0;
+const MON_LOG_MAX = 60;
+
+async function toggleMonitor() {
+  const res = await fetch('/api/monitor', { method: 'POST' });
+  if (!res.ok) return;
+  const json = await res.json();
+  monitorRunning = json.active;
+
+  const btn = document.getElementById('mon-toggle');
+  const log = document.getElementById('mon-log');
+
+  if (monitorRunning) {
+    btn.textContent = '⏹ Stop Monitor';
+    btn.className = 'btn-warning';
+    log.classList.add('active');
+    // Show path immediately
+    fetch('/api/config').then(r => r.json()).then(c => {
+      document.getElementById('mon-path').textContent = c.oscPath || '—';
+    }).catch(() => {});
+  } else {
+    btn.textContent = '▶ Start Monitor';
+    btn.className = 'btn-primary';
+  }
+}
+
+function clearMonitor() {
+  document.getElementById('mon-log').innerHTML = '';
+  monitorMin = null; monitorMax = null;
+  monitorSum = 0; monitorCount = 0;
+  document.getElementById('mon-min').textContent = '—';
+  document.getElementById('mon-max').textContent = '—';
+  document.getElementById('mon-avg').textContent = '—';
+}
+
+function updateOSCMonitor(d) {
+  const val = parseFloat(d.value ?? 0);
+
+  // Large value display
+  document.getElementById('mon-value').textContent = val.toFixed(4);
+  document.getElementById('mon-path').textContent = d.address || '—';
+  document.getElementById('mon-bar').style.width = (val * 100) + '%';
+
+  // Running statistics
+  if (monitorMin === null || val < monitorMin) monitorMin = val;
+  if (monitorMax === null || val > monitorMax) monitorMax = val;
+  monitorSum += val;
+  monitorCount++;
+  document.getElementById('mon-min').textContent = monitorMin.toFixed(4);
+  document.getElementById('mon-max').textContent = monitorMax.toFixed(4);
+  document.getElementById('mon-avg').textContent = (monitorSum / monitorCount).toFixed(4);
+
+  // Scrolling log row
+  const log = document.getElementById('mon-log');
+  if (!log.classList.contains('active')) return;
+
+  const ts = new Date().toLocaleTimeString('de-DE', { hour12: false,
+    hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const pct = Math.round(val * 100);
+  const trig = d.triggered ? '<span class="log-trig">▲</span>' : '';
+
+  const row = document.createElement('div');
+  row.className = 'log-row';
+  row.innerHTML =
+    `<span class="log-ts">${ts}</span>` +
+    `<span class="log-val">${val.toFixed(4)}</span>` +
+    `<span class="log-bar"><span class="log-fill" style="width:${pct}%"></span></span>` +
+    trig;
+
+  // Prepend so newest is on top; cap at MON_LOG_MAX rows
+  log.insertBefore(row, log.firstChild);
+  while (log.children.length > MON_LOG_MAX) log.removeChild(log.lastChild);
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConfig();

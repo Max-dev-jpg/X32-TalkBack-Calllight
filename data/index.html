@@ -356,6 +356,29 @@
     </div>
   </div>
 
+  <h3 style="margin-top:2rem">OSC Monitor</h3>
+  <div class="monitor-box">
+    <div class="monitor-header">
+      <div>
+        <div class="monitor-path" id="mon-path">—</div>
+        <div class="monitor-value mono" id="mon-value">0.000</div>
+      </div>
+      <div class="monitor-stats">
+        <span>Min <b id="mon-min">—</b></span>
+        <span>Max <b id="mon-max">—</b></span>
+        <span>Avg <b id="mon-avg">—</b></span>
+      </div>
+    </div>
+    <div class="level-bar-wrap" style="height:8px;margin:0.6rem 0">
+      <div class="level-bar" id="mon-bar"></div>
+    </div>
+    <div class="monitor-controls">
+      <button id="mon-toggle" class="btn-primary" onclick="toggleMonitor()">&#9654; Start Monitor</button>
+      <button class="btn-secondary" onclick="clearMonitor()">Clear Log</button>
+    </div>
+    <div class="monitor-log" id="mon-log"></div>
+  </div>
+
   <h3 style="margin-top:2rem">Connection Info</h3>
   <table class="info-table">
     <tr><th>Access Point SSID</th><td>TalkBack-CallLight</td></tr>

@@ -19,10 +19,11 @@
 
 static String buildStatusJSON() {
     DynamicJsonDocument doc(512);
-    auto& nm  = NetworkManager::instance();
-    auto& mix = MixerConnection::instance();
+    auto& nm   = NetworkManager::instance();
+    auto& mix  = MixerConnection::instance();
     auto& trig = TriggerLogic::instance();
 
+    doc["type"]           = "status";
     doc["mixerConnected"] = mix.isConnected();
     doc["level"]          = mix.getCurrentLevel();
     doc["smoothed"]       = trig.getSmoothedLevel();
@@ -217,6 +218,10 @@ void WebServerManager::setupAPI() {
     _server.on("/api/reconnect", HTTP_POST,
         [this](AsyncWebServerRequest* req) { handleReconnect(req); });
 
+    // ── POST /api/monitor  (toggle OSC monitor mode) ──────────────────────────
+    _server.on("/api/monitor", HTTP_POST,
+        [this](AsyncWebServerRequest* req) { handleMonitorToggle(req); });
+
     // ── 404 fallback ──────────────────────────────────────────────────────────
     _server.onNotFound([](AsyncWebServerRequest* req) {
         // For captive portal behaviour: redirect to AP IP
@@ -285,6 +290,15 @@ void WebServerManager::handleReconnect(AsyncWebServerRequest* req) {
     req->send(200, "application/json", "{\"ok\":true}");
 }
 
+void WebServerManager::handleMonitorToggle(AsyncWebServerRequest* req) {
+    _monitorActive = !_monitorActive;
+    String body = _monitorActive
+        ? "{\"ok\":true,\"active\":true}"
+        : "{\"ok\":true,\"active\":false}";
+    req->send(200, "application/json", body);
+    Serial.printf("[Web] OSC monitor %s\n", _monitorActive ? "started" : "stopped");
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public entry points
 // ─────────────────────────────────────────────────────────────────────────────
@@ -310,11 +324,36 @@ void WebServerManager::broadcastStatus() {
     _ws.textAll(buildStatusJSON());
 }
 
+void WebServerManager::broadcastOSCMonitor() {
+    if (_ws.count() == 0) return;
+
+    DynamicJsonDocument doc(256);
+    doc["type"]      = "osc";
+    doc["address"]   = ConfigManager::instance().buildOSCPath();
+    doc["value"]     = MixerConnection::instance().getCurrentLevel();
+    doc["smoothed"]  = TriggerLogic::instance().getSmoothedLevel();
+    doc["triggered"] = TriggerLogic::instance().isTriggered();
+    doc["ts"]        = millis();
+
+    String out;
+    serializeJson(doc, out);
+    _ws.textAll(out);
+}
+
 void WebServerManager::loop() {
     _ws.cleanupClients();
 
-    if (millis() - _lastBroadcastMs >= WS_BROADCAST_INTERVAL) {
-        _lastBroadcastMs = millis();
+    uint32_t now = millis();
+
+    // Regular 1 s status broadcast
+    if (now - _lastBroadcastMs >= WS_BROADCAST_INTERVAL) {
+        _lastBroadcastMs = now;
         broadcastStatus();
+    }
+
+    // Fast 200 ms OSC monitor broadcast (only when monitor is active)
+    if (_monitorActive && now - _lastMonitorMs >= 200) {
+        _lastMonitorMs = now;
+        broadcastOSCMonitor();
     }
 }

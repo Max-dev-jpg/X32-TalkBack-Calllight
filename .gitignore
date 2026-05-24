@@ -1,0 +1,72 @@
+# =============================================================================
+# TalkBack CallLight - .gitignore
+# =============================================================================
+
+# ── PlatformIO ──────────────────────────────────────────────────────────────
+.pio/
+.pioenvs/
+.piolibdeps/
+.pio/build/
+.pio/libdeps/
+
+# ── Build artifacts ──────────────────────────────────────────────────────────
+build/
+*.bin
+*.elf
+*.map
+*.hex
+firmware*.bin
+
+# ── IDE / Editor ─────────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Python (examples / tools) ────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# ── Node (if any web tooling is added later) ─────────────────────────────────
+node_modules/
+dist/
+npm-debug.log*
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ── Windows ───────────────────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── Secrets / local config ────────────────────────────────────────────────────
+secrets.h
+local_config.h
+*.env
+.env
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Temporary files ───────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.orig

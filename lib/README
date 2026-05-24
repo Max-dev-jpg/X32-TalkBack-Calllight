@@ -1,0 +1,15 @@
+This directory is reserved for project-specific private libraries.
+
+PlatformIO automatically discovers libraries placed here.
+
+Third-party libraries are declared in platformio.ini under `lib_deps`
+and are downloaded automatically on the first build — no manual installation
+needed on any platform (macOS, Windows, Linux).
+
+If you need to vendor a library locally (e.g. for offline builds or custom
+patches), place it here as a subdirectory, e.g.:
+
+    lib/
+    └── MyCustomLib/
+        ├── MyCustomLib.h
+        └── MyCustomLib.cpp

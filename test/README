@@ -1,0 +1,7 @@
+This directory is reserved for PlatformIO unit tests.
+
+Tests placed here are executed via:
+
+    pio test -e esp32dev
+
+See https://docs.platformio.org/en/latest/advanced/unit-testing/ for details.

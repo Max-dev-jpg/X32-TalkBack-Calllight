@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TalkBack CallLight</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">&#9650;</span>
+      <div>
+        <div class="logo-title">TalkBack CallLight</div>
+        <div class="logo-sub">X32 / M32 Call Light Controller</div>
+      </div>
+    </div>
+    <div class="header-status">
+      <span class="badge" id="hdr-mixer">Mixer</span>
+      <span class="badge" id="hdr-trigger">Idle</span>
+      <span class="badge" id="hdr-wifi">WiFi</span>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="status">Status</button>
+  <button class="tab" data-tab="network">Network</button>
+  <button class="tab" data-tab="mixer">Mixer</button>
+  <button class="tab" data-tab="trigger">Trigger</button>
+  <button class="tab" data-tab="output">Output</button>
+  <button class="tab" data-tab="tools">Tools</button>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════════ STATUS ═══════════ -->
+<section class="tab-content active" id="tab-status">
+  <h2>Live Status</h2>
+  <div class="status-grid">
+
+    <div class="card">
+      <div class="card-label">Mixer Connection</div>
+      <div class="card-value" id="st-mixer-con">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Signal Level</div>
+      <div class="card-value mono" id="st-level">0.000</div>
+      <div class="level-bar-wrap"><div class="level-bar" id="st-level-bar"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Smoothed Level</div>
+      <div class="card-value mono" id="st-smooth">0.000</div>
+      <div class="level-bar-wrap"><div class="level-bar accent2" id="st-smooth-bar"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Trigger State</div>
+      <div class="card-value" id="st-trig">IDLE</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">WiFi (STA)</div>
+      <div class="card-value" id="st-wifi">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">RSSI</div>
+      <div class="card-value mono" id="st-rssi">— dBm</div>
+    </div>
+    <div class="card">
+      <div class="card-label">AP Clients</div>
+      <div class="card-value mono" id="st-ap-clients">0</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Uptime</div>
+      <div class="card-value mono" id="st-uptime">—</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Free Heap</div>
+      <div class="card-value mono" id="st-heap">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Firmware</div>
+      <div class="card-value mono" id="st-fw">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">AP IP</div>
+      <div class="card-value mono" id="st-ap-ip">—</div>
+    </div>
+    <div class="card">
+      <div class="card-label">STA IP</div>
+      <div class="card-value mono" id="st-sta-ip">—</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ NETWORK ═══════════ -->
+<section class="tab-content" id="tab-network">
+  <h2>Network Settings</h2>
+  <form id="form-network">
+
+    <fieldset>
+      <legend>Access Point</legend>
+      <label>AP SSID
+        <input type="text" value="TalkBack-CallLight" disabled>
+        <small>Fixed — set in firmware (DEFAULT_AP_SSID)</small>
+      </label>
+      <label>AP Password
+        <input type="text" name="apPassword" maxlength="63" placeholder="calllight">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>WiFi Station (optional)</legend>
+      <label>SSID
+        <input type="text" name="wifiSSID" maxlength="63" placeholder="Your network name">
+      </label>
+      <label>Password
+        <input type="password" name="wifiPassword" maxlength="63" placeholder="••••••••">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>IP Configuration</legend>
+      <label class="toggle-row">
+        <span>Use DHCP</span>
+        <input type="checkbox" name="useDHCP" id="use-dhcp" checked>
+      </label>
+      <div id="static-ip-fields">
+        <label>Static IP    <input type="text" name="staticIP"      placeholder="192.168.1.100"></label>
+        <label>Gateway      <input type="text" name="staticGateway" placeholder="192.168.1.1"></label>
+        <label>Subnet Mask  <input type="text" name="staticSubnet"  placeholder="255.255.255.0"></label>
+      </div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+    </div>
+  </form>
+</section>
+
+<!-- ════════════════════════════════════════════════════════ MIXER ═══════════ -->
+<section class="tab-content" id="tab-mixer">
+  <h2>Mixer Settings</h2>
+  <form id="form-mixer">
+
+    <fieldset>
+      <legend>Connection</legend>
+      <label>Mixer IP Address
+        <input type="text" name="mixerIP" placeholder="192.168.0.100">
+      </label>
+      <label>OSC TX Port (to mixer)
+        <input type="number" name="oscTxPort" min="1" max="65535" value="10023">
+      </label>
+      <label>OSC RX Port (from mixer)
+        <input type="number" name="oscRxPort" min="1" max="65535" value="10024">
+      </label>
+      <label>Mixer Type
+        <select name="mixerType">
+          <option value="0">Behringer X32</option>
+          <option value="1">Midas M32</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Channel</legend>
+      <label>Channel Type
+        <select name="channelType" id="ch-type">
+          <option value="0">Input Channel</option>
+          <option value="1">Bus</option>
+          <option value="2">Matrix</option>
+          <option value="3">DCA</option>
+        </select>
+      </label>
+      <label>Channel Number
+        <input type="number" name="channelNumber" min="1" max="32" value="1">
+      </label>
+      <label>Signal Source
+        <select name="signalSource">
+          <option value="0">Fader Level</option>
+          <option value="1">Meter Level</option>
+          <option value="2">Mute State</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Advanced</legend>
+      <label>Custom OSC Path (overrides above if set)
+        <input type="text" name="customOSCPath" placeholder="/ch/01/mix/fader">
+      </label>
+      <div class="info-row">Resolved path: <code id="osc-path-preview">—</code></div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+    </div>
+  </form>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ TRIGGER ═══════════ -->
+<section class="tab-content" id="tab-trigger">
+  <h2>Trigger Settings</h2>
+  <form id="form-trigger">
+
+    <fieldset>
+      <legend>Threshold</legend>
+      <label>Threshold (0.0 – 1.0)
+        <div class="range-row">
+          <input type="range" name="threshold" min="0" max="1" step="0.01" value="0.5"
+                 oninput="syncNum(this,'threshold-num')">
+          <input type="number" id="threshold-num" min="0" max="1" step="0.01" value="0.5"
+                 oninput="syncRange(this,'threshold')">
+        </div>
+      </label>
+      <label>Hysteresis (0.0 – 0.5)
+        <div class="range-row">
+          <input type="range" name="hysteresis" min="0" max="0.5" step="0.01" value="0.05"
+                 oninput="syncNum(this,'hysteresis-num')">
+          <input type="number" id="hysteresis-num" min="0" max="0.5" step="0.01" value="0.05"
+                 oninput="syncRange(this,'hysteresis')">
+        </div>
+      </label>
+      <label>Smoothing / EMA alpha (0.01 – 1.0)
+        <div class="range-row">
+          <input type="range" name="smoothing" min="0.01" max="1" step="0.01" value="0.15"
+                 oninput="syncNum(this,'smoothing-num')">
+          <input type="number" id="smoothing-num" min="0.01" max="1" step="0.01" value="0.15"
+                 oninput="syncRange(this,'smoothing')">
+        </div>
+        <small>Lower = more smoothing.  Higher = faster response.</small>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Timing</legend>
+      <label>Hold Time (ms) — minimum output ON duration
+        <input type="number" name="holdTimeMs" min="0" max="30000" value="500">
+      </label>
+      <label>Release Delay (ms) — delay after hold before switching off
+        <input type="number" name="releaseDelayMs" min="0" max="30000" value="1000">
+      </label>
+      <label>Debounce (ms)
+        <input type="number" name="debounceMs" min="0" max="5000" value="50">
+      </label>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+    </div>
+  </form>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ OUTPUT ════════════ -->
+<section class="tab-content" id="tab-output">
+  <h2>Output Settings</h2>
+  <form id="form-output">
+
+    <fieldset>
+      <legend>Output Type</legend>
+      <label>Mode
+        <select name="outputType">
+          <option value="0">GPIO only</option>
+          <option value="1">WS2812 LED strip only</option>
+          <option value="2" selected>GPIO + WS2812 (both)</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>GPIO / Relay</legend>
+      <label>GPIO Pin
+        <input type="number" name="outputPin" min="0" max="39" value="2">
+      </label>
+      <label class="toggle-row">
+        <span>Invert output (active-low relay)</span>
+        <input type="checkbox" name="outputInvert">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Flash Mode</legend>
+      <label>Mode
+        <select name="flashMode">
+          <option value="0">Solid</option>
+          <option value="1" selected>Blink</option>
+          <option value="2">Pulse (sine fade)</option>
+          <option value="3">Strobe</option>
+        </select>
+      </label>
+      <label>Speed (ms per cycle)
+        <input type="number" name="flashSpeedMs" min="50" max="10000" value="500">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>WS2812B LED Strip</legend>
+      <label>Data Pin
+        <input type="number" name="ledPin" min="0" max="39" value="4">
+      </label>
+      <label>LED Count
+        <input type="number" name="ledCount" min="1" max="300" value="30">
+      </label>
+      <label>Brightness (0 – 255)
+        <div class="range-row">
+          <input type="range" name="ledBrightness" min="0" max="255" value="128"
+                 oninput="syncNum(this,'led-bri-num')">
+          <input type="number" id="led-bri-num" min="0" max="255" value="128"
+                 oninput="syncRange(this,'ledBrightness')">
+        </div>
+      </label>
+      <label>Color
+        <div class="color-row">
+          <label>R <input type="number" name="ledR" min="0" max="255" value="255"></label>
+          <label>G <input type="number" name="ledG" min="0" max="255" value="120"></label>
+          <label>B <input type="number" name="ledB" min="0" max="255" value="0"></label>
+          <input type="color" id="color-picker" value="#ff7800"
+                 oninput="applyColorPicker(this)">
+        </div>
+      </label>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+    </div>
+  </form>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ TOOLS ════════════ -->
+<section class="tab-content" id="tab-tools">
+  <h2>Tools &amp; Diagnostics</h2>
+
+  <div class="tools-grid">
+    <div class="tool-card">
+      <div class="tool-title">Test Output</div>
+      <p>Triggers GPIO and LED strip for 3 seconds to verify wiring.</p>
+      <button class="btn-primary" onclick="apiPost('/api/test')">Test Output</button>
+    </div>
+    <div class="tool-card">
+      <div class="tool-title">Reconnect Mixer</div>
+      <p>Closes and reopens the UDP connection to the mixer.</p>
+      <button class="btn-secondary" onclick="apiPost('/api/reconnect')">Reconnect</button>
+    </div>
+    <div class="tool-card">
+      <div class="tool-title">Reboot Device</div>
+      <p>Performs a clean ESP32 software reboot.</p>
+      <button class="btn-warning" onclick="confirmAction('/api/reboot','Reboot the device?')">Reboot</button>
+    </div>
+    <div class="tool-card">
+      <div class="tool-title">Factory Reset</div>
+      <p>Erases all saved settings and restores factory defaults.</p>
+      <button class="btn-danger" onclick="confirmAction('/api/reset','Reset ALL settings to defaults?')">Factory Reset</button>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2rem">Connection Info</h3>
+  <table class="info-table">
+    <tr><th>Access Point SSID</th><td>TalkBack-CallLight</td></tr>
+    <tr><th>AP IP Address</th>    <td id="tool-ap-ip">—</td></tr>
+    <tr><th>Web UI (AP)</th>      <td><a id="tool-ap-link" href="#">http://192.168.4.1</a></td></tr>
+    <tr><th>mDNS hostname</th>    <td><a href="http://talkback-calllight.local">http://talkback-calllight.local</a></td></tr>
+    <tr><th>STA IP Address</th>   <td id="tool-sta-ip">—</td></tr>
+  </table>
+</section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

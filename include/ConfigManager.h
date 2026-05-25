@@ -49,6 +49,20 @@ struct DeviceConfig {
     uint8_t  ledR;
     uint8_t  ledG;
     uint8_t  ledB;
+
+    // ── Talkback Engine ───────────────────────────────────────────────────────
+    // Each list stores a JSON array of action objects, e.g.:
+    //   [{"t":"clearSolo"},{"t":"solo","ct":0,"cn":1},{"t":"out","s":true}]
+    // Action types: clearSolo | solo | unsolo | mute | unmute | osc | out
+    //   solo/unsolo/mute/unmute: ct=chType, cn=chNum (1-based)
+    //   osc:  p=oscPath (string), v=value (int)
+    //   out:  s=state (bool) — forces call-light output on/off
+    bool     tbEnabled;       // enable the talkback engine
+    uint8_t  tbMonitor;       // TB_MONITOR_A / _B / _BOTH
+    char     tbAOnJson [TB_ACTION_JSON_LEN];  // actions when Talk A activates
+    char     tbAOffJson[TB_ACTION_JSON_LEN];  // actions when Talk A releases
+    char     tbBOnJson [TB_ACTION_JSON_LEN];  // actions when Talk B activates
+    char     tbBOffJson[TB_ACTION_JSON_LEN];  // actions when Talk B releases
 };
 
 // =============================================================================

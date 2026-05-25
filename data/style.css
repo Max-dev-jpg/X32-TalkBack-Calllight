@@ -480,6 +480,173 @@ button:hover   { opacity: 0.85; }
 .log-fill { height: 100%; background: var(--accent); border-radius: 100px; }
 .log-trig { color: var(--warn); flex-shrink: 0; }
 
+/* ── Talkback indicators ─────────────────────────────────────────────────── */
+.tb-status-row {
+  display: flex;
+  gap: 2rem;
+  padding: 0.5rem 0;
+}
+
+.tb-badge-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tb-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  transition: background 0.25s, border-color 0.25s, color 0.25s, box-shadow 0.25s;
+}
+
+.tb-badge.active {
+  background: #2a1400;
+  border-color: var(--warn);
+  color: var(--warn);
+  box-shadow: 0 0 14px rgba(255,152,0,0.35);
+}
+
+.tb-badge-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* Collapsible talkback sections */
+#tb-engine-fields {
+  overflow: hidden;
+  max-height: 200px;
+  transition: max-height 0.3s;
+}
+#tb-engine-fields.hidden { max-height: 0; }
+
+#tb-advanced-section {
+  overflow: hidden;
+  max-height: 4000px;
+  transition: max-height 0.4s;
+}
+#tb-advanced-section.hidden { max-height: 0; overflow: hidden; }
+
+/* ── Talkback sub-tabs (Talk A / Talk B) ─────────────────────────────────── */
+.tb-subtabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.85rem;
+}
+.tb-subtab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.55rem 1.3rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tb-subtab:hover  { color: var(--text); }
+.tb-subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tb-subtab:active { transform: none; }
+
+.tb-sub-content         { display: none; }
+.tb-sub-content.active  { display: block; }
+
+/* ── Action sections ─────────────────────────────────────────────────────── */
+.action-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+}
+.action-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.act-section-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+.act-badge {
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.12rem 0.5rem;
+  border-radius: 100px;
+}
+.act-badge.act-on  { background:#0a2a1a; color:var(--success); border:1px solid #1a4a2a; }
+.act-badge.act-off { background:#2a0a0a; color:var(--danger);  border:1px solid #4a1010; }
+
+/* ── Action card list ────────────────────────────────────────────────────── */
+.action-list { display:flex; flex-direction:column; gap:0.4rem; margin-bottom:0.6rem; }
+
+.action-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+}
+.action-card-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+.act-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.act-del {
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+  cursor: pointer;
+  opacity: 0.65;
+}
+.act-del:hover { opacity:1; transform:none; }
+
+.action-params {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.action-params select,
+.action-params input[type="text"]   { flex: 1; min-width: 80px; }
+.action-params input[type="number"] { flex: 0 0 70px; min-width: 60px; }
+
+.act-empty {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 0.2rem 0;
+}
+
+/* ── Add-action row ──────────────────────────────────────────────────────── */
+.add-row { display:flex; gap:0.4rem; align-items:center; }
+.add-row select { flex:1; }
+.add-row button { flex-shrink:0; white-space:nowrap; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-direction: column; align-items: flex-start; }

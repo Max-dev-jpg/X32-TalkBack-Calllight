@@ -31,6 +31,7 @@
   <button class="tab" data-tab="mixer">Mixer</button>
   <button class="tab" data-tab="trigger">Trigger</button>
   <button class="tab" data-tab="output">Output</button>
+  <button class="tab" data-tab="talkback">Talkback</button>
   <button class="tab" data-tab="tools">Tools</button>
 </nav>
 
@@ -92,6 +93,14 @@
     <div class="card">
       <div class="card-label">STA IP</div>
       <div class="card-value mono" id="st-sta-ip">—</div>
+    </div>
+    <div class="card" id="st-tb-a-card">
+      <div class="card-label">Talkback A</div>
+      <div class="card-value" id="st-tb-a">—</div>
+    </div>
+    <div class="card" id="st-tb-b-card">
+      <div class="card-label">Talkback B</div>
+      <div class="card-value" id="st-tb-b">—</div>
     </div>
   </div>
 </section>
@@ -324,6 +333,99 @@
     </fieldset>
 
     <div class="form-actions">
+      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+    </div>
+  </form>
+</section>
+
+<!-- ════════════════════════════════════════════════════ TALKBACK ════════════ -->
+<section class="tab-content" id="tab-talkback">
+  <h2>Talkback Engine</h2>
+  <form id="form-talkback">
+
+    <!-- Live indicators -->
+    <fieldset>
+      <legend>Live State</legend>
+      <div class="tb-status-row">
+        <div class="tb-badge-wrap">
+          <div class="tb-badge" id="tb-ind-a">A</div>
+          <div class="tb-badge-label">Talk A</div>
+        </div>
+        <div class="tb-badge-wrap">
+          <div class="tb-badge" id="tb-ind-b">B</div>
+          <div class="tb-badge-label">Talk B</div>
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Global settings -->
+    <fieldset>
+      <legend>General</legend>
+      <label class="toggle-row">
+        <span>Enable Talkback Engine</span>
+        <input type="checkbox" id="tb-enabled" onchange="updateTBVisibility()">
+      </label>
+      <div id="tb-engine-fields">
+        <label style="margin-top:0.85rem">Monitor
+          <select id="tb-monitor">
+            <option value="0">Talkback A only</option>
+            <option value="1">Talkback B only</option>
+            <option value="2">Both A &amp; B</option>
+          </select>
+        </label>
+      </div>
+    </fieldset>
+
+    <!-- Per-button action editor (shown when enabled) -->
+    <div id="tb-advanced-section">
+      <!-- Sub-tab bar: Talk A / Talk B -->
+      <div class="tb-subtabs">
+        <button type="button" class="tb-subtab active" data-tbsub="a">Talk A</button>
+        <button type="button" class="tb-subtab" data-tbsub="b">Talk B</button>
+      </div>
+
+      <!-- Talk A actions -->
+      <div id="tb-sub-a" class="tb-sub-content active">
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Active</span>
+            <span class="act-badge act-on">ON</span>
+          </div>
+          <div id="actions-aOn" class="action-list"></div>
+          <div id="add-row-aOn" class="add-row"></div>
+        </div>
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Released</span>
+            <span class="act-badge act-off">OFF</span>
+          </div>
+          <div id="actions-aOff" class="action-list"></div>
+          <div id="add-row-aOff" class="add-row"></div>
+        </div>
+      </div>
+
+      <!-- Talk B actions -->
+      <div id="tb-sub-b" class="tb-sub-content">
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Active</span>
+            <span class="act-badge act-on">ON</span>
+          </div>
+          <div id="actions-bOn" class="action-list"></div>
+          <div id="add-row-bOn" class="add-row"></div>
+        </div>
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Released</span>
+            <span class="act-badge act-off">OFF</span>
+          </div>
+          <div id="actions-bOff" class="action-list"></div>
+          <div id="add-row-bOff" class="add-row"></div>
+        </div>
+      </div>
+    </div><!-- /tb-advanced-section -->
+
+    <div class="form-actions" style="margin-top:1rem">
       <button type="submit" class="btn-primary">Save &amp; Apply</button>
     </div>
   </form>

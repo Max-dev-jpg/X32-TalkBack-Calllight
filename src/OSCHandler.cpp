@@ -63,6 +63,21 @@ size_t OSCHandler::buildQuery(const String& address, uint8_t* buf, size_t bufLen
     return offset;
 }
 
+size_t OSCHandler::buildIntMsg(const String& address, int32_t value,
+                               uint8_t* buf, size_t bufLen) {
+    memset(buf, 0, bufLen);
+    size_t offset = 0;
+    offset = writeOSCString(buf, offset, bufLen, address);
+    offset = writeOSCString(buf, offset, bufLen, ",i");
+    if (offset + 4 <= bufLen) {
+        buf[offset++] = (uint8_t)((value >> 24) & 0xFF);
+        buf[offset++] = (uint8_t)((value >> 16) & 0xFF);
+        buf[offset++] = (uint8_t)((value >> 8)  & 0xFF);
+        buf[offset++] = (uint8_t)( value         & 0xFF);
+    }
+    return offset;
+}
+
 size_t OSCHandler::buildStringMsg(const String& address,
                                    const String& strArg,
                                    uint8_t* buf, size_t bufLen) {

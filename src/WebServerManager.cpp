@@ -9,6 +9,7 @@
 #include "TriggerLogic.h"
 #include "OutputController.h"
 #include "LEDController.h"
+#include "TalkbackEngine.h"
 #include "config.h"
 #include <Arduino.h>
 #include <Update.h>
@@ -36,6 +37,9 @@ static String buildStatusJSON() {
     doc["uptime"]         = millis() / 1000;
     doc["freeHeap"]       = ESP.getFreeHeap();
     doc["firmware"]       = FIRMWARE_VERSION;
+    doc["tbEnabled"]      = Config.tbEnabled;
+    doc["tbA"]            = TalkbackEngine::instance().isTalkbackAActive();
+    doc["tbB"]            = TalkbackEngine::instance().isTalkbackBActive();
 
     String out;
     serializeJson(doc, out);
@@ -43,7 +47,7 @@ static String buildStatusJSON() {
 }
 
 static String buildConfigJSON() {
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(6144);
     const DeviceConfig& c = Config;
 
     // Network
@@ -89,6 +93,14 @@ static String buildConfigJSON() {
     doc["ledG"]           = c.ledG;
     doc["ledB"]           = c.ledB;
 
+    // Talkback Engine
+    doc["tbEnabled"]  = c.tbEnabled;
+    doc["tbMonitor"]  = c.tbMonitor;
+    doc["tbAOnJson"]  = c.tbAOnJson;
+    doc["tbAOffJson"] = c.tbAOffJson;
+    doc["tbBOnJson"]  = c.tbBOnJson;
+    doc["tbBOffJson"] = c.tbBOffJson;
+
     String out;
     serializeJson(doc, out);
     return out;
@@ -96,7 +108,7 @@ static String buildConfigJSON() {
 
 // Apply a JSON config document to the DeviceConfig struct
 static bool applyConfigJSON(const String& body) {
-    DynamicJsonDocument doc(2048);
+    DynamicJsonDocument doc(6144);
     if (deserializeJson(doc, body) != DeserializationError::Ok) return false;
 
     DeviceConfig& c = Config;
@@ -142,6 +154,14 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("ledR"))          c.ledR          = doc["ledR"];
     if (doc.containsKey("ledG"))          c.ledG          = doc["ledG"];
     if (doc.containsKey("ledB"))          c.ledB          = doc["ledB"];
+
+    // Talkback Engine
+    if (doc.containsKey("tbEnabled")) c.tbEnabled = doc["tbEnabled"];
+    if (doc.containsKey("tbMonitor")) c.tbMonitor = doc["tbMonitor"];
+    if (doc.containsKey("tbAOnJson"))  strlcpy(c.tbAOnJson,  doc["tbAOnJson"],  sizeof(c.tbAOnJson));
+    if (doc.containsKey("tbAOffJson")) strlcpy(c.tbAOffJson, doc["tbAOffJson"], sizeof(c.tbAOffJson));
+    if (doc.containsKey("tbBOnJson"))  strlcpy(c.tbBOnJson,  doc["tbBOnJson"],  sizeof(c.tbBOnJson));
+    if (doc.containsKey("tbBOffJson")) strlcpy(c.tbBOffJson, doc["tbBOffJson"], sizeof(c.tbBOffJson));
 
     return true;
 }
@@ -259,6 +279,7 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
             OutputController::instance().begin();
             LEDController::instance().begin();
             MixerConnection::instance().reconnect();
+            TalkbackEngine::instance().begin();
             Serial.println("[Web] Config updated.");
         } else {
             Serial.println("[Web] Config parse failed!");

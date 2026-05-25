@@ -21,6 +21,7 @@
 #include "OutputController.h"
 #include "LEDController.h"
 #include "WebServerManager.h"
+#include "TalkbackEngine.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,9 @@ void setup() {
     // ── 7. LED strip ─────────────────────────────────────────────────────────
     LEDController::instance().begin();
 
+    // ── 8. Talkback Engine ────────────────────────────────────────────────────
+    TalkbackEngine::instance().begin();
+
     Serial.println("\n[Main] All systems initialised. Entering main loop.\n");
 }
 
@@ -73,8 +77,9 @@ void loop() {
         MixerConnection::instance().getCurrentLevel());
     TriggerLogic::instance().loop();
 
-    // ── Drive outputs based on trigger state ─────────────────────────────────
-    bool triggered = TriggerLogic::instance().isTriggered();
+    // ── Drive outputs (trigger state OR talkback output override) ────────────
+    bool triggered = TriggerLogic::instance().isTriggered()
+                  || TalkbackEngine::instance().isOutputActive();
 
     if (Config.outputType == OUTPUT_GPIO || Config.outputType == OUTPUT_BOTH) {
         OutputController::instance().setTrigger(triggered);
@@ -85,6 +90,9 @@ void loop() {
         LEDController::instance().setTrigger(triggered);
         LEDController::instance().loop();
     }
+
+    // ── Talkback Engine: poll talkback state, send solo commands ─────────────
+    TalkbackEngine::instance().loop();
 
     // ── Web server: WS broadcasts, client cleanup ─────────────────────────────
     WebServerManager::instance().loop();

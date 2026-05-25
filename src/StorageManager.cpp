@@ -57,6 +57,14 @@ bool StorageManager::save(const DeviceConfig& c) {
     _prefs.putUChar ("flash_mode", c.flashMode);
     _prefs.putUShort("flash_spd",  c.flashSpeedMs);
 
+    // Talkback Engine
+    _prefs.putBool  ("tb_en",    c.tbEnabled);
+    _prefs.putUChar ("tb_mon",   c.tbMonitor);
+    _prefs.putString("tb_a_on",  c.tbAOnJson);
+    _prefs.putString("tb_a_off", c.tbAOffJson);
+    _prefs.putString("tb_b_on",  c.tbBOnJson);
+    _prefs.putString("tb_b_off", c.tbBOffJson);
+
     // LED
     _prefs.putUChar ("led_pin",    c.ledPin);
     _prefs.putUShort("led_cnt",    c.ledCount);
@@ -114,6 +122,14 @@ bool StorageManager::load(DeviceConfig& c) {
     c.outputInvert  = _prefs.getBool  ("out_inv",    c.outputInvert);
     c.flashMode     = _prefs.getUChar ("flash_mode", c.flashMode);
     c.flashSpeedMs  = _prefs.getUShort("flash_spd",  c.flashSpeedMs);
+
+    // Talkback Engine
+    c.tbEnabled = _prefs.getBool ("tb_en",  c.tbEnabled);
+    c.tbMonitor = _prefs.getUChar("tb_mon", c.tbMonitor);
+    strlcpy(c.tbAOnJson,  _prefs.getString("tb_a_on",  "").c_str(), sizeof(c.tbAOnJson));
+    strlcpy(c.tbAOffJson, _prefs.getString("tb_a_off", "").c_str(), sizeof(c.tbAOffJson));
+    strlcpy(c.tbBOnJson,  _prefs.getString("tb_b_on",  "").c_str(), sizeof(c.tbBOnJson));
+    strlcpy(c.tbBOffJson, _prefs.getString("tb_b_off", "").c_str(), sizeof(c.tbBOffJson));
 
     // LED
     c.ledPin        = _prefs.getUChar ("led_pin",    c.ledPin);

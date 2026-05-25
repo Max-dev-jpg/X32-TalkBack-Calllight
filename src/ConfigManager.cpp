@@ -60,6 +60,14 @@ void ConfigManager::applyDefaults() {
     _cfg.flashMode       = DEFAULT_FLASH_MODE;
     _cfg.flashSpeedMs    = DEFAULT_FLASH_SPEED_MS;
 
+    // Talkback Engine
+    _cfg.tbEnabled       = false;
+    _cfg.tbMonitor       = TB_MONITOR_A;
+    _cfg.tbAOnJson[0]    = '\0';
+    _cfg.tbAOffJson[0]   = '\0';
+    _cfg.tbBOnJson[0]    = '\0';
+    _cfg.tbBOffJson[0]   = '\0';
+
     // LED
     _cfg.ledPin          = DEFAULT_LED_DATA_PIN;
     _cfg.ledCount        = DEFAULT_LED_COUNT;

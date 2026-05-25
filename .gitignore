@@ -18,8 +18,7 @@ build/
 firmware*.bin
 
 # ── IDE / Editor ─────────────────────────────────────────────────────────────
-.vscode/settings.json
-.vscode/launch.json
+.vscode
 .idea/
 *.swp
 *.swo

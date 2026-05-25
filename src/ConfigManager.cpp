@@ -125,6 +125,10 @@ String ConfigManager::buildOSCPath() const
         else
             return base + "/mix/fader";
     case SIG_MUTE:
+        if (_cfg.channelType == CH_DCA)
+            return base + "/on";
+        else
+            return base + "/mix/on";
         return base + "/mix/on";
     case SIG_METER:
         return "/meters/0"; // subscribe to meter bus 0

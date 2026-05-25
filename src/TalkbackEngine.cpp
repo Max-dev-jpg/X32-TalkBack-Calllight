@@ -102,19 +102,23 @@ void TalkbackEngine::executeActions(const char* jsonStr) {
         const char* t = act["t"] | "";
 
         if (strcmp(t, "clearSolo") == 0) {
-            sendNoArg(TB_CLEARSOLO_PATH);
+            sendInt(TB_CLEARSOLO_PATH, 1);
             Serial.println("[TB]   -> clearSolo");
 
         } else if (strcmp(t, "solo") == 0) {
             uint8_t id = channelToSoloID(act["ct"] | (uint8_t)0,
                                           act["cn"] | (uint8_t)1);
-            sendInt(String(TB_SOLOSW_BASE) + id, 1);
+            char idStr[3]; // 2 digits + null terminator
+            snprintf(idStr, sizeof(idStr), "%02u", id);
+            sendInt(String(TB_SOLOSW_BASE) + idStr, 1);
             Serial.printf("[TB]   -> solo  id=%u\n", id);
 
         } else if (strcmp(t, "unsolo") == 0) {
             uint8_t id = channelToSoloID(act["ct"] | (uint8_t)0,
                                           act["cn"] | (uint8_t)1);
-            sendInt(String(TB_SOLOSW_BASE) + id, 0);
+            char idStr[3]; // 2 digits + null terminator
+            snprintf(idStr, sizeof(idStr), "%02u", id);
+            sendInt(String(TB_SOLOSW_BASE) + idStr, 0);
             Serial.printf("[TB]   -> unsolo  id=%u\n", id);
 
         } else if (strcmp(t, "mute") == 0) {

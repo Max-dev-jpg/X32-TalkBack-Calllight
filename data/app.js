@@ -46,7 +46,7 @@ const CH_DEFS = [
   { v:2, n:'Matrix',     max:6  },
   { v:3, n:'DCA',        max:8  },
   { v:6, n:'Main L/R',   max:0,  noNum:true },
-  { v:7, n:'Main Mono',  max:0,  noNum:true },
+  { v:7, n:'Main M/C',  max:0,  noNum:true },
 ];
 
 // Action type definitions

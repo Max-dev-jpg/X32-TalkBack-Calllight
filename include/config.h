@@ -49,11 +49,14 @@
 #define OUTPUT_BOTH    2   // GPIO + LED strip simultaneously
 
 // ── Channel / signal source enums ────────────────────────────────────────────
-#define CH_INPUT   0
-#define CH_BUS     1
-#define CH_MATRIX  2
-#define CH_DCA     3
-#define CH_AUXIN   4   // Aux inputs (AuxIn 1-8)
+#define CH_INPUT   0   // Input channels  1-32
+#define CH_BUS     1   // Mix buses        1-16
+#define CH_MATRIX  2   // Matrix           1-6
+#define CH_DCA     3   // DCA groups       1-8
+#define CH_AUXIN   4   // Aux inputs       1-8
+#define CH_FXRTN   5   // FX returns       1-8
+#define CH_MAIN    6   // Main L/R stereo  (no number)
+#define CH_MONO    7   // Main Mono/Center (no number)
 
 #define SIG_FADER  0   // continuous 0.0-1.0
 #define SIG_METER  1   // meter level 0.0-1.0  (subscribed via /xremote)
@@ -101,15 +104,23 @@
 #define TB_MONITOR_B    1
 #define TB_MONITOR_BOTH 2
 
-// Solo ID ranges (X32 solo bus numbering)
-// Input CH  : 1-32
-// AuxIn     : 33-40
-// FX Ret    : 41-48
-// Bus       : 49-64
-// Matrix    : 65-70
-// DCA       : 73-80
+// Solo bus IDs (X32/M32 /-stat/solosw/{id})
+// Input CH  :  1-32   (offset  0, 1-indexed)
+// AuxIn     : 33-40   (offset 32)
+// FX Return : 41-48   (offset 40)
+// Bus       : 49-64   (offset 48)
+// Matrix    : 65-70   (offset 64)
+// Main LR   : 71      (special)
+// Main Mono : 72      (special)
+// DCA       : 73-80   (offset 72)
 #define SOLO_OFFSET_INPUT   0
 #define SOLO_OFFSET_AUXIN   32
+#define SOLO_OFFSET_FXRTN   40
 #define SOLO_OFFSET_BUS     48
 #define SOLO_OFFSET_MATRIX  64
 #define SOLO_OFFSET_DCA     72
+#define SOLO_ID_MAIN_LR     71
+#define SOLO_ID_MAIN_MONO   72
+
+// Talkback action JSON buffer length (per list, 4 lists total)
+#define TB_ACTION_JSON_LEN  1024

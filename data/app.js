@@ -15,24 +15,186 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 // ── Talkback section visibility ───────────────────────────────────────────────
-const tbEnabledCb     = document.getElementById('tb-enabled');
-const tbEngineFields  = document.getElementById('tb-engine-fields');
-const tbAdvSection    = document.getElementById('tb-advanced-section');
-const tbSoloEnabledCb = document.getElementById('tb-solo-enabled');
-const tbSoloSection   = document.getElementById('tb-solo-section');
-
 function updateTBVisibility() {
-  const on = tbEnabledCb.checked;
-  tbEngineFields.classList.toggle('hidden', !on);
-  tbAdvSection.classList.toggle('hidden', !on);
+  const on = document.getElementById('tb-enabled').checked;
+  document.getElementById('tb-engine-fields') .classList.toggle('hidden', !on);
+  document.getElementById('tb-advanced-section').classList.toggle('hidden', !on);
 }
-function updateTBSoloVisibility() {
-  tbSoloSection.classList.toggle('hidden', !tbSoloEnabledCb.checked);
-}
-tbEnabledCb.addEventListener('change', updateTBVisibility);
-tbSoloEnabledCb.addEventListener('change', updateTBSoloVisibility);
+document.getElementById('tb-enabled').addEventListener('change', updateTBVisibility);
 updateTBVisibility();
-updateTBSoloVisibility();
+
+// ── Talkback sub-tab switching (Talk A / Talk B) ──────────────────────────────
+document.querySelectorAll('.tb-subtab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tb-subtab')     .forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tb-sub-content').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tb-sub-' + btn.dataset.tbsub).classList.add('active');
+  });
+});
+
+// ── Talkback action-builder state ─────────────────────────────────────────────
+// Each list key maps to one action array: aOn, aOff, bOn, bOff
+const tbState = { aOn: [], aOff: [], bOn: [], bOff: [] };
+
+// Channel type definitions — values MUST match C++ config.h enum
+const CH_DEFS = [
+  { v:0, n:'Input CH',   max:32 },
+  { v:4, n:'Aux In',     max:8  },
+  { v:5, n:'FX Return',  max:8  },
+  { v:1, n:'Mix Bus',    max:16 },
+  { v:2, n:'Matrix',     max:6  },
+  { v:3, n:'DCA',        max:8  },
+  { v:6, n:'Main L/R',   max:0,  noNum:true },
+  { v:7, n:'Main Mono',  max:0,  noNum:true },
+];
+
+// Action type definitions
+const ACT_DEFS = [
+  { t:'clearSolo', label:'Clear All Solos'   },
+  { t:'solo',      label:'Solo Channel',      hasCh:true  },
+  { t:'unsolo',    label:'Unsolo Channel',    hasCh:true  },
+  { t:'mute',      label:'Mute Channel',      hasCh:true  },
+  { t:'unmute',    label:'Unmute Channel',    hasCh:true  },
+  { t:'osc',       label:'Custom OSC Command',hasOsc:true },
+  { t:'out',       label:'Force Call Light',  hasOut:true },
+];
+
+function safeParseJSON(s) {
+  try { return JSON.parse(s || '[]') || []; } catch(e) { return []; }
+}
+
+// ── Add-action row initialisation ─────────────────────────────────────────────
+function initAddRow(lk) {
+  const row = document.getElementById('add-row-' + lk);
+  if (!row) return;
+  const opts = ACT_DEFS.map(d =>
+    `<option value="${d.t}">${d.label}</option>`).join('');
+  row.innerHTML =
+    `<select id="add-sel-${lk}">${opts}</select>` +
+    `<button type="button" class="btn-secondary"` +
+    ` onclick="addAction('${lk}', document.getElementById('add-sel-${lk}').value)">+ Add</button>`;
+}
+['aOn','aOff','bOn','bOff'].forEach(initAddRow);
+
+// ── Action CRUD helpers ───────────────────────────────────────────────────────
+function addAction(lk, type) {
+  const def = ACT_DEFS.find(d => d.t === type) || {};
+  const a = { t: type };
+  if (def.hasCh)  { a.ct = 0; a.cn = 1; }
+  if (def.hasOsc) { a.p = ''; a.v = 1;  }
+  if (def.hasOut) { a.s = true; }
+  tbState[lk].push(a);
+  renderActionList(lk);
+}
+
+function removeAction(lk, idx) {
+  tbState[lk].splice(idx, 1);
+  renderActionList(lk);
+}
+
+function setActParam(lk, idx, key, val) {
+  if (tbState[lk][idx]) tbState[lk][idx][key] = val;
+}
+
+// Called when channel-type select changes — updates max on the number input
+function onChTypeChange(lk, idx, selEl) {
+  const ct = CH_DEFS.find(d => d.v === parseInt(selEl.value)) || CH_DEFS[0];
+  setActParam(lk, idx, 'ct', parseInt(selEl.value));
+  const card = selEl.closest('.action-card');
+  const numIn = card && card.querySelector('.chnum-inp');
+  if (numIn) {
+    numIn.max   = ct.max || 32;
+    numIn.style.display = ct.noNum ? 'none' : '';
+    // Clamp current value
+    if (!ct.noNum && parseInt(numIn.value) > (ct.max || 32)) {
+      numIn.value = ct.max || 1;
+      setActParam(lk, idx, 'cn', ct.max || 1);
+    }
+  }
+}
+
+// ── Action card renderer ──────────────────────────────────────────────────────
+function renderChOpts(selected) {
+  return CH_DEFS.map(d =>
+    `<option value="${d.v}"${d.v===selected?' selected':''}>${d.n}</option>`
+  ).join('');
+}
+
+function renderActionCard(a, lk, i) {
+  const def = ACT_DEFS.find(d => d.t === a.t) || { label: a.t };
+  let params = '';
+
+  if (def.hasCh) {
+    const ct = CH_DEFS.find(d => d.v === (a.ct || 0)) || CH_DEFS[0];
+    params = `<div class="action-params">
+      <select onchange="onChTypeChange('${lk}',${i},this)">${renderChOpts(a.ct||0)}</select>
+      <input type="number" class="chnum-inp" min="1" max="${ct.max||32}"
+             value="${a.cn||1}" ${ct.noNum?'style="display:none"':''}
+             onchange="setActParam('${lk}',${i},'cn',parseInt(this.value))">
+    </div>`;
+  } else if (def.hasOsc) {
+    const safeP = (a.p || '').replace(/"/g, '&quot;');
+    params = `<div class="action-params">
+      <input type="text" placeholder="/osc/path" value="${safeP}"
+             onchange="setActParam('${lk}',${i},'p',this.value)">
+      <input type="number" value="${a.v !== undefined ? a.v : 1}" style="width:70px"
+             onchange="setActParam('${lk}',${i},'v',parseInt(this.value))">
+    </div>`;
+  } else if (def.hasOut) {
+    params = `<div class="action-params">
+      <select onchange="setActParam('${lk}',${i},'s',this.value==='1')">
+        <option value="1"${a.s?' selected':''}>Call Light ON</option>
+        <option value="0"${!a.s?' selected':''}>Call Light OFF</option>
+      </select>
+    </div>`;
+  }
+
+  return `<div class="action-card">
+    <div class="action-card-hdr">
+      <span class="act-label">${def.label}</span>
+      <button type="button" class="act-del" onclick="removeAction('${lk}',${i})">&#xd7;</button>
+    </div>
+    ${params}
+  </div>`;
+}
+
+function renderActionList(lk) {
+  const el = document.getElementById('actions-' + lk);
+  if (!el) return;
+  const list = tbState[lk];
+  el.innerHTML = list.length
+    ? list.map((a, i) => renderActionCard(a, lk, i)).join('')
+    : '<div class="act-empty">No actions — nothing will be sent.</div>';
+}
+
+// ── Talkback config load / save ───────────────────────────────────────────────
+function loadTBConfig(c) {
+  document.getElementById('tb-enabled').checked   = !!c.tbEnabled;
+  document.getElementById('tb-monitor').value     = c.tbMonitor ?? 0;
+
+  tbState.aOn  = safeParseJSON(c.tbAOnJson);
+  tbState.aOff = safeParseJSON(c.tbAOffJson);
+  tbState.bOn  = safeParseJSON(c.tbBOnJson);
+  tbState.bOff = safeParseJSON(c.tbBOffJson);
+  ['aOn','aOff','bOn','bOff'].forEach(renderActionList);
+
+  updateTBVisibility();
+}
+
+document.getElementById('form-talkback').addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = {
+    tbEnabled:  document.getElementById('tb-enabled').checked,
+    tbMonitor:  parseInt(document.getElementById('tb-monitor').value || '0'),
+    tbAOnJson:  JSON.stringify(tbState.aOn),
+    tbAOffJson: JSON.stringify(tbState.aOff),
+    tbBOnJson:  JSON.stringify(tbState.bOn),
+    tbBOffJson: JSON.stringify(tbState.bOff),
+  };
+  await apiPost('/api/config', data);
+  setTimeout(loadConfig, 800);
+});
 
 // ── DHCP toggle ──────────────────────────────────────────────────────────────
 const useDhcpCb = document.getElementById('use-dhcp');
@@ -136,8 +298,7 @@ async function loadConfig() {
     document.getElementById('osc-path-preview').textContent = c.oscPath || '—';
 
     updateDhcpVisibility();
-    updateTBVisibility();
-    updateTBSoloVisibility();
+    loadTBConfig(c);
   } catch(e) {
     console.warn('Config load failed:', e);
   }
@@ -170,7 +331,7 @@ function bindForm(formId) {
     setTimeout(loadConfig, 800);
   });
 }
-['form-network', 'form-mixer', 'form-trigger', 'form-output', 'form-talkback'].forEach(bindForm);
+['form-network', 'form-mixer', 'form-trigger', 'form-output'].forEach(bindForm);
 
 // ── Live status updates via WebSocket ────────────────────────────────────────
 let ws = null;

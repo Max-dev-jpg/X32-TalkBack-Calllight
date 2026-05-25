@@ -343,29 +343,31 @@
   <h2>Talkback Engine</h2>
   <form id="form-talkback">
 
+    <!-- Live indicators -->
     <fieldset>
       <legend>Live State</legend>
       <div class="tb-status-row">
         <div class="tb-badge-wrap">
           <div class="tb-badge" id="tb-ind-a">A</div>
-          <div class="tb-badge-label">Talkback A</div>
+          <div class="tb-badge-label">Talk A</div>
         </div>
         <div class="tb-badge-wrap">
           <div class="tb-badge" id="tb-ind-b">B</div>
-          <div class="tb-badge-label">Talkback B</div>
+          <div class="tb-badge-label">Talk B</div>
         </div>
       </div>
     </fieldset>
 
+    <!-- Global settings -->
     <fieldset>
       <legend>General</legend>
       <label class="toggle-row">
         <span>Enable Talkback Engine</span>
-        <input type="checkbox" name="tbEnabled" id="tb-enabled">
+        <input type="checkbox" id="tb-enabled" onchange="updateTBVisibility()">
       </label>
       <div id="tb-engine-fields">
         <label style="margin-top:0.85rem">Monitor
-          <select name="tbMonitor">
+          <select id="tb-monitor">
             <option value="0">Talkback A only</option>
             <option value="1">Talkback B only</option>
             <option value="2">Both A &amp; B</option>
@@ -374,63 +376,56 @@
       </div>
     </fieldset>
 
+    <!-- Per-button action editor (shown when enabled) -->
     <div id="tb-advanced-section">
+      <!-- Sub-tab bar: Talk A / Talk B -->
+      <div class="tb-subtabs">
+        <button type="button" class="tb-subtab active" data-tbsub="a">Talk A</button>
+        <button type="button" class="tb-subtab" data-tbsub="b">Talk B</button>
+      </div>
 
-      <fieldset>
-        <legend>Solo on Talkback</legend>
-        <label class="toggle-row">
-          <span>Send solo command on talkback activation</span>
-          <input type="checkbox" name="tbSoloEnabled" id="tb-solo-enabled">
-        </label>
-        <div id="tb-solo-section">
-          <label class="toggle-row" style="margin-top:0.85rem">
-            <span>Clear all solos first</span>
-            <input type="checkbox" name="tbClearSolo">
-          </label>
-          <label>Channel Type
-            <select name="tbSoloType">
-              <option value="0">Input Channel (1 – 32)</option>
-              <option value="4">Aux Input (1 – 8)</option>
-              <option value="1">Bus (1 – 16)</option>
-              <option value="2">Matrix (1 – 6)</option>
-              <option value="3">DCA (1 – 8)</option>
-            </select>
-          </label>
-          <label>Channel Number
-            <input type="number" name="tbSoloNumber" min="1" max="32" value="1">
-          </label>
+      <!-- Talk A actions -->
+      <div id="tb-sub-a" class="tb-sub-content active">
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Active</span>
+            <span class="act-badge act-on">ON</span>
+          </div>
+          <div id="actions-aOn" class="action-list"></div>
+          <div id="add-row-aOn" class="add-row"></div>
         </div>
-      </fieldset>
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Released</span>
+            <span class="act-badge act-off">OFF</span>
+          </div>
+          <div id="actions-aOff" class="action-list"></div>
+          <div id="add-row-aOff" class="add-row"></div>
+        </div>
+      </div>
 
-      <fieldset>
-        <legend>Custom OSC — On Talkback Active</legend>
-        <small style="display:block;margin-bottom:0.75rem">
-          Sent with integer value <b style="color:var(--accent)">1</b> when talkback turns on. Leave blank to skip.
-        </small>
-        <label>Command 1
-          <input type="text" name="tbOnCmd1" placeholder="/path/to/osc/command">
-        </label>
-        <label>Command 2
-          <input type="text" name="tbOnCmd2" placeholder="/path/to/osc/command">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Custom OSC — On Talkback Off</legend>
-        <small style="display:block;margin-bottom:0.75rem">
-          Sent with integer value <b style="color:var(--danger)">0</b> when talkback turns off. Leave blank to skip.
-        </small>
-        <label>Command 1
-          <input type="text" name="tbOffCmd1" placeholder="/path/to/osc/command">
-        </label>
-        <label>Command 2
-          <input type="text" name="tbOffCmd2" placeholder="/path/to/osc/command">
-        </label>
-      </fieldset>
-
+      <!-- Talk B actions -->
+      <div id="tb-sub-b" class="tb-sub-content">
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Active</span>
+            <span class="act-badge act-on">ON</span>
+          </div>
+          <div id="actions-bOn" class="action-list"></div>
+          <div id="add-row-bOn" class="add-row"></div>
+        </div>
+        <div class="action-section">
+          <div class="action-section-hdr">
+            <span class="act-section-title">When Released</span>
+            <span class="act-badge act-off">OFF</span>
+          </div>
+          <div id="actions-bOff" class="action-list"></div>
+          <div id="add-row-bOff" class="add-row"></div>
+        </div>
+      </div>
     </div><!-- /tb-advanced-section -->
 
-    <div class="form-actions">
+    <div class="form-actions" style="margin-top:1rem">
       <button type="submit" class="btn-primary">Save &amp; Apply</button>
     </div>
   </form>

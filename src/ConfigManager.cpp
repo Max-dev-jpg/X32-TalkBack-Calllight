@@ -63,14 +63,10 @@ void ConfigManager::applyDefaults() {
     // Talkback Engine
     _cfg.tbEnabled       = false;
     _cfg.tbMonitor       = TB_MONITOR_A;
-    _cfg.tbClearSolo     = true;
-    _cfg.tbSoloEnabled   = false;
-    _cfg.tbSoloType      = CH_DCA;
-    _cfg.tbSoloNumber    = 1;
-    _cfg.tbOnCmd1[0]     = '\0';
-    _cfg.tbOnCmd2[0]     = '\0';
-    _cfg.tbOffCmd1[0]    = '\0';
-    _cfg.tbOffCmd2[0]    = '\0';
+    _cfg.tbAOnJson[0]    = '\0';
+    _cfg.tbAOffJson[0]   = '\0';
+    _cfg.tbBOnJson[0]    = '\0';
+    _cfg.tbBOffJson[0]   = '\0';
 
     // LED
     _cfg.ledPin          = DEFAULT_LED_DATA_PIN;

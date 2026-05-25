@@ -77,8 +77,9 @@ void loop() {
         MixerConnection::instance().getCurrentLevel());
     TriggerLogic::instance().loop();
 
-    // ── Drive outputs based on trigger state ─────────────────────────────────
-    bool triggered = TriggerLogic::instance().isTriggered();
+    // ── Drive outputs (trigger state OR talkback output override) ────────────
+    bool triggered = TriggerLogic::instance().isTriggered()
+                  || TalkbackEngine::instance().isOutputActive();
 
     if (Config.outputType == OUTPUT_GPIO || Config.outputType == OUTPUT_BOTH) {
         OutputController::instance().setTrigger(triggered);

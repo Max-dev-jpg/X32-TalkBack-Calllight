@@ -10,6 +10,8 @@
 #include "OutputController.h"
 #include "LEDController.h"
 #include "TalkbackEngine.h"
+#include "OSCReceiver.h"
+#include "ActionEngine.h"
 #include "config.h"
 #include <Arduino.h>
 #include <Update.h>
@@ -19,7 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 static String buildStatusJSON() {
-    DynamicJsonDocument doc(512);
+    DynamicJsonDocument doc(768);
     auto& nm   = NetworkManager::instance();
     auto& mix  = MixerConnection::instance();
     auto& trig = TriggerLogic::instance();
@@ -40,6 +42,9 @@ static String buildStatusJSON() {
     doc["tbEnabled"]      = Config.tbEnabled;
     doc["tbA"]            = TalkbackEngine::instance().isTalkbackAActive();
     doc["tbB"]            = TalkbackEngine::instance().isTalkbackBActive();
+    doc["extOscEnabled"]  = Config.extOscEnabled;
+    doc["extOscPort"]     = Config.extOscPort;
+    doc["extTrigger"]     = OSCReceiver::instance().isExtTriggerActive();
 
     String out;
     serializeJson(doc, out);
@@ -47,7 +52,7 @@ static String buildStatusJSON() {
 }
 
 static String buildConfigJSON() {
-    DynamicJsonDocument doc(6144);
+    DynamicJsonDocument doc(8192);
     const DeviceConfig& c = Config;
 
     // Network
@@ -101,6 +106,14 @@ static String buildConfigJSON() {
     doc["tbBOnJson"]  = c.tbBOnJson;
     doc["tbBOffJson"] = c.tbBOffJson;
 
+    // Trigger Actions
+    doc["triggerOnJson"]  = c.triggerOnJson;
+    doc["triggerOffJson"] = c.triggerOffJson;
+
+    // External OSC Receiver
+    doc["extOscEnabled"] = c.extOscEnabled;
+    doc["extOscPort"]    = c.extOscPort;
+
     String out;
     serializeJson(doc, out);
     return out;
@@ -108,7 +121,7 @@ static String buildConfigJSON() {
 
 // Apply a JSON config document to the DeviceConfig struct
 static bool applyConfigJSON(const String& body) {
-    DynamicJsonDocument doc(6144);
+    DynamicJsonDocument doc(8192);
     if (deserializeJson(doc, body) != DeserializationError::Ok) return false;
 
     DeviceConfig& c = Config;
@@ -162,6 +175,14 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("tbAOffJson")) strlcpy(c.tbAOffJson, doc["tbAOffJson"], sizeof(c.tbAOffJson));
     if (doc.containsKey("tbBOnJson"))  strlcpy(c.tbBOnJson,  doc["tbBOnJson"],  sizeof(c.tbBOnJson));
     if (doc.containsKey("tbBOffJson")) strlcpy(c.tbBOffJson, doc["tbBOffJson"], sizeof(c.tbBOffJson));
+
+    // Trigger Actions
+    if (doc.containsKey("triggerOnJson"))  strlcpy(c.triggerOnJson,  doc["triggerOnJson"],  sizeof(c.triggerOnJson));
+    if (doc.containsKey("triggerOffJson")) strlcpy(c.triggerOffJson, doc["triggerOffJson"], sizeof(c.triggerOffJson));
+
+    // External OSC Receiver
+    if (doc.containsKey("extOscEnabled")) c.extOscEnabled = doc["extOscEnabled"];
+    if (doc.containsKey("extOscPort"))    c.extOscPort    = doc["extOscPort"];
 
     return true;
 }
@@ -280,6 +301,7 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
             LEDController::instance().begin();
             MixerConnection::instance().reconnect();
             TalkbackEngine::instance().begin();
+            OSCReceiver::instance().begin();
             Serial.println("[Web] Config updated.");
         } else {
             Serial.println("[Web] Config parse failed!");

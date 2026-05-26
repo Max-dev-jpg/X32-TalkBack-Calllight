@@ -22,6 +22,8 @@
 #include "LEDController.h"
 #include "WebServerManager.h"
 #include "TalkbackEngine.h"
+#include "ActionEngine.h"
+#include "OSCReceiver.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -60,6 +62,12 @@ void setup() {
     // ── 8. Talkback Engine ────────────────────────────────────────────────────
     TalkbackEngine::instance().begin();
 
+    // ── 9. Action Engine (shared action executor + output bitmask) ────────────
+    ActionEngine::begin();
+
+    // ── 10. External OSC Receiver ─────────────────────────────────────────────
+    OSCReceiver::instance().begin();
+
     Serial.println("\n[Main] All systems initialised. Entering main loop.\n");
 }
 
@@ -77,9 +85,10 @@ void loop() {
         MixerConnection::instance().getCurrentLevel());
     TriggerLogic::instance().loop();
 
-    // ── Drive outputs (trigger state OR talkback output override) ────────────
+    // ── Drive outputs (trigger state OR any action-engine output override) ───
     bool triggered = TriggerLogic::instance().isTriggered()
-                  || TalkbackEngine::instance().isOutputActive();
+                  || ActionEngine::isOutputActive()
+                  || OSCReceiver::instance().isExtTriggerActive();
 
     if (Config.outputType == OUTPUT_GPIO || Config.outputType == OUTPUT_BOTH) {
         OutputController::instance().setTrigger(triggered);
@@ -93,6 +102,9 @@ void loop() {
 
     // ── Talkback Engine: poll talkback state, send solo commands ─────────────
     TalkbackEngine::instance().loop();
+
+    // ── External OSC Receiver ─────────────────────────────────────────────────
+    OSCReceiver::instance().loop();
 
     // ── Web server: WS broadcasts, client cleanup ─────────────────────────────
     WebServerManager::instance().loop();

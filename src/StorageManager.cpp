@@ -65,6 +65,14 @@ bool StorageManager::save(const DeviceConfig& c) {
     _prefs.putString("tb_b_on",  c.tbBOnJson);
     _prefs.putString("tb_b_off", c.tbBOffJson);
 
+    // Trigger Actions
+    _prefs.putString("tr_on",    c.triggerOnJson);
+    _prefs.putString("tr_off",   c.triggerOffJson);
+
+    // External OSC Receiver
+    _prefs.putBool  ("xosc_en",   c.extOscEnabled);
+    _prefs.putUShort("xosc_port", c.extOscPort);
+
     // LED
     _prefs.putUChar ("led_pin",    c.ledPin);
     _prefs.putUShort("led_cnt",    c.ledCount);
@@ -130,6 +138,14 @@ bool StorageManager::load(DeviceConfig& c) {
     strlcpy(c.tbAOffJson, _prefs.getString("tb_a_off", "").c_str(), sizeof(c.tbAOffJson));
     strlcpy(c.tbBOnJson,  _prefs.getString("tb_b_on",  "").c_str(), sizeof(c.tbBOnJson));
     strlcpy(c.tbBOffJson, _prefs.getString("tb_b_off", "").c_str(), sizeof(c.tbBOffJson));
+
+    // Trigger Actions
+    strlcpy(c.triggerOnJson,  _prefs.getString("tr_on",  "").c_str(), sizeof(c.triggerOnJson));
+    strlcpy(c.triggerOffJson, _prefs.getString("tr_off", "").c_str(), sizeof(c.triggerOffJson));
+
+    // External OSC Receiver
+    c.extOscEnabled = _prefs.getBool  ("xosc_en",   c.extOscEnabled);
+    c.extOscPort    = _prefs.getUShort("xosc_port", c.extOscPort);
 
     // LED
     c.ledPin        = _prefs.getUChar ("led_pin",    c.ledPin);

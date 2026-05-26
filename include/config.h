@@ -122,5 +122,21 @@
 #define SOLO_ID_MAIN_LR     71
 #define SOLO_ID_MAIN_MONO   72
 
-// Talkback action JSON buffer length (per list, 4 lists total)
+// Talkback action JSON buffer length (per list)
 #define TB_ACTION_JSON_LEN  1024
+
+// ── Action Engine ─────────────────────────────────────────────────────────────
+// Source IDs used as bit positions in ActionEngine's output bitmask
+#define ACT_SRC_TRIGGER  0   // mixer-channel trigger
+#define ACT_SRC_TB_A     1   // Talkback A button
+#define ACT_SRC_TB_B     2   // Talkback B button
+#define ACT_SRC_OSC      3   // external OSC receiver
+#define ACT_SEND_PORT    10026  // ActionEngine send-only UDP port
+
+// ── External OSC Control (Companion / OSC controllers) ───────────────────────
+#define DEFAULT_EXT_OSC_PORT   8000
+#define XOSC_PATH_TRIGGER      "/calllight/trigger"
+#define XOSC_PATH_TRIGGER_ON   "/calllight/trigger/on"
+#define XOSC_PATH_TRIGGER_OFF  "/calllight/trigger/off"
+#define XOSC_PATH_TB_A         "/calllight/talkback/a"
+#define XOSC_PATH_TB_B         "/calllight/talkback/b"

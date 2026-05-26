@@ -33,9 +33,10 @@ document.querySelectorAll('.tb-subtab').forEach(btn => {
   });
 });
 
-// ── Talkback action-builder state ─────────────────────────────────────────────
-// Each list key maps to one action array: aOn, aOff, bOn, bOff
-const tbState = { aOn: [], aOff: [], bOn: [], bOff: [] };
+// ── Action-builder state ──────────────────────────────────────────────────────
+// Keys: aOn/aOff/bOn/bOff  (Talkback A & B)
+//       trOn/trOff          (Trigger actions)
+const tbState = { aOn: [], aOff: [], bOn: [], bOff: [], trOn: [], trOff: [] };
 
 // Channel type definitions — values MUST match C++ config.h enum
 const CH_DEFS = [
@@ -75,7 +76,7 @@ function initAddRow(lk) {
     `<button type="button" class="btn-secondary"` +
     ` onclick="addAction('${lk}', document.getElementById('add-sel-${lk}').value)">+ Add</button>`;
 }
-['aOn','aOff','bOn','bOff'].forEach(initAddRow);
+['aOn','aOff','bOn','bOff','trOn','trOff'].forEach(initAddRow);
 
 // ── Action CRUD helpers ───────────────────────────────────────────────────────
 function addAction(lk, type) {
@@ -168,7 +169,7 @@ function renderActionList(lk) {
     : '<div class="act-empty">No actions — nothing will be sent.</div>';
 }
 
-// ── Talkback config load / save ───────────────────────────────────────────────
+// ── Talkback + Trigger action config load ─────────────────────────────────────
 function loadTBConfig(c) {
   document.getElementById('tb-enabled').checked   = !!c.tbEnabled;
   document.getElementById('tb-monitor').value     = c.tbMonitor ?? 0;
@@ -177,11 +178,14 @@ function loadTBConfig(c) {
   tbState.aOff = safeParseJSON(c.tbAOffJson);
   tbState.bOn  = safeParseJSON(c.tbBOnJson);
   tbState.bOff = safeParseJSON(c.tbBOffJson);
-  ['aOn','aOff','bOn','bOff'].forEach(renderActionList);
+  tbState.trOn  = safeParseJSON(c.triggerOnJson);
+  tbState.trOff = safeParseJSON(c.triggerOffJson);
+  ['aOn','aOff','bOn','bOff','trOn','trOff'].forEach(renderActionList);
 
   updateTBVisibility();
 }
 
+// ── Talkback save ────────────────────────────────────────────────────────────
 document.getElementById('form-talkback').addEventListener('submit', async e => {
   e.preventDefault();
   const data = {
@@ -195,6 +199,24 @@ document.getElementById('form-talkback').addEventListener('submit', async e => {
   await apiPost('/api/config', data);
   setTimeout(loadConfig, 800);
 });
+
+// ── Trigger save (form fields + action JSON) ─────────────────────────────────
+document.getElementById('form-trigger').addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = collectForm('form-trigger');
+  data.triggerOnJson  = JSON.stringify(tbState.trOn);
+  data.triggerOffJson = JSON.stringify(tbState.trOff);
+  await apiPost('/api/config', data);
+  setTimeout(loadConfig, 800);
+});
+
+// ── OSC receiver visibility ───────────────────────────────────────────────────
+function updateOscVisibility() {
+  const on = document.getElementById('ext-osc-enabled').checked;
+  document.getElementById('ext-osc-fields').classList.toggle('hidden', !on);
+}
+document.getElementById('ext-osc-enabled').addEventListener('change', updateOscVisibility);
+updateOscVisibility();
 
 // ── DHCP toggle ──────────────────────────────────────────────────────────────
 const useDhcpCb = document.getElementById('use-dhcp');
@@ -298,6 +320,7 @@ async function loadConfig() {
     document.getElementById('osc-path-preview').textContent = c.oscPath || '—';
 
     updateDhcpVisibility();
+    updateOscVisibility();
     loadTBConfig(c);
   } catch(e) {
     console.warn('Config load failed:', e);
@@ -331,7 +354,9 @@ function bindForm(formId) {
     setTimeout(loadConfig, 800);
   });
 }
-['form-network', 'form-mixer', 'form-trigger', 'form-output'].forEach(bindForm);
+// Note: form-trigger has a custom handler (includes trigger action JSON)
+//       form-talkback has a custom handler (includes talkback action JSON)
+['form-network', 'form-mixer', 'form-output', 'form-osc'].forEach(bindForm);
 
 // ── Live status updates via WebSocket ────────────────────────────────────────
 let ws = null;
@@ -417,10 +442,21 @@ function updateStatus(d) {
   setText('st-ap-ip', d.apIP ?? '—');
   setText('st-sta-ip', wifiOk ? (d.staIP ?? '—') : '—');
 
+  // STA IP clickable link in status tab
+  const stStaLink = document.getElementById('st-sta-link');
+  if (stStaLink) {
+    if (wifiOk && d.staIP) {
+      stStaLink.href = 'http://' + d.staIP;
+      stStaLink.style.display = '';
+    } else {
+      stStaLink.style.display = 'none';
+    }
+  }
+
   // Header badges
   setBadge('hdr-mixer',   mixOk,   'ok',     'Mixer');
   setBadge('hdr-trigger', trig,    'active',  trig ? 'TRIGGERED' : 'Idle', !!trig);
-  setBadge('hdr-wifi',    wifiOk,  'ok',     'WiFi');
+  setBadge('hdr-wifi',    wifiOk,  'ok',     wifiOk ? (d.staIP ? d.staIP : 'WiFi') : 'WiFi');
 
   // Tools tab info
   const toolApIp = document.getElementById('tool-ap-ip');
@@ -432,6 +468,26 @@ function updateStatus(d) {
     toolApLink.href = 'http://' + d.apIP;
     toolApLink.textContent = 'http://' + d.apIP;
   }
+  // Tools tab: STA link
+  const toolStaLink = document.getElementById('tool-sta-link');
+  const toolStaNoLink = document.getElementById('tool-sta-nolink');
+  if (toolStaLink && toolStaNoLink) {
+    if (wifiOk && d.staIP) {
+      toolStaLink.href = 'http://' + d.staIP;
+      toolStaLink.textContent = 'http://' + d.staIP;
+      toolStaLink.style.display = '';
+      toolStaNoLink.style.display = 'none';
+    } else {
+      toolStaLink.style.display = 'none';
+      toolStaNoLink.style.display = '';
+    }
+  }
+
+  // OSC tab: connection info
+  const oscStaIp = document.getElementById('osc-sta-ip');
+  if (oscStaIp) oscStaIp.textContent = wifiOk ? (d.staIP ?? '—') : 'Not connected';
+  const oscPort = document.getElementById('osc-listen-port');
+  if (oscPort) oscPort.textContent = d.extOscEnabled ? (d.extOscPort ?? '—') : 'Disabled';
 
   // Talkback state
   const tbEnabled = !!d.tbEnabled;

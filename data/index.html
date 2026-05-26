@@ -32,6 +32,7 @@
   <button class="tab" data-tab="trigger">Trigger</button>
   <button class="tab" data-tab="output">Output</button>
   <button class="tab" data-tab="talkback">Talkback</button>
+  <button class="tab" data-tab="osc">OSC</button>
   <button class="tab" data-tab="tools">Tools</button>
 </nav>
 
@@ -93,6 +94,7 @@
     <div class="card">
       <div class="card-label">STA IP</div>
       <div class="card-value mono" id="st-sta-ip">—</div>
+      <a class="card-open-link" id="st-sta-link" href="#" style="display:none">Open ↗</a>
     </div>
     <div class="card" id="st-tb-a-card">
       <div class="card-label">Talkback A</div>
@@ -255,6 +257,27 @@
       <label>Debounce (ms)
         <input type="number" name="debounceMs" min="0" max="5000" value="50">
       </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Trigger Actions</legend>
+      <p class="fieldset-hint">Execute OSC commands when the call light activates or releases.<br>These same actions also fire when the call light is triggered via external OSC.</p>
+      <div class="action-section">
+        <div class="action-section-hdr">
+          <span class="act-section-title">On Activate</span>
+          <span class="act-badge act-on">ON</span>
+        </div>
+        <div id="actions-trOn" class="action-list"></div>
+        <div id="add-row-trOn" class="add-row"></div>
+      </div>
+      <div class="action-section">
+        <div class="action-section-hdr">
+          <span class="act-section-title">On Release</span>
+          <span class="act-badge act-off">OFF</span>
+        </div>
+        <div id="actions-trOff" class="action-list"></div>
+        <div id="add-row-trOff" class="add-row"></div>
+      </div>
     </fieldset>
 
     <div class="form-actions">
@@ -431,6 +454,75 @@
   </form>
 </section>
 
+<!-- ═══════════════════════════════════════════════════════ OSC ══════════════ -->
+<section class="tab-content" id="tab-osc">
+  <h2>External OSC Control</h2>
+  <form id="form-osc">
+    <fieldset>
+      <legend>OSC Receiver</legend>
+      <label class="toggle-row">
+        <span>Enable External OSC</span>
+        <input type="checkbox" name="extOscEnabled" id="ext-osc-enabled">
+      </label>
+      <div id="ext-osc-fields">
+        <label style="margin-top:0.85rem">Listen Port
+          <input type="number" name="extOscPort" min="1024" max="65535" value="8000">
+          <small>UDP port to listen on (default 8000). Restart required when changed.</small>
+        </label>
+      </div>
+    </fieldset>
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+    </div>
+  </form>
+
+  <div id="osc-info-section">
+    <h3 style="margin-top:1.5rem">Connection Info</h3>
+    <table class="info-table">
+      <tr><th>Device IP (STA)</th><td id="osc-sta-ip">—</td></tr>
+      <tr><th>Listen Port</th>    <td id="osc-listen-port">—</td></tr>
+    </table>
+
+    <h3 style="margin-top:1.5rem">Available OSC Paths</h3>
+    <table class="info-table osc-paths-table">
+      <thead>
+        <tr><th class="path-col">Path</th><th>Argument</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/calllight/trigger</code></td>
+          <td><code>int 0|1</code></td>
+          <td>Set trigger on (1) or off (0). Runs Trigger Actions from the Trigger tab.</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/trigger/on</code></td>
+          <td>none</td>
+          <td>Activate trigger (no argument needed — press button style).</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/trigger/off</code></td>
+          <td>none</td>
+          <td>Release trigger.</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/talkback/a</code></td>
+          <td><code>int 0|1</code></td>
+          <td>Simulate Talkback A. Runs Talk A actions from the Talkback tab.</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/talkback/b</code></td>
+          <td><code>int 0|1</code></td>
+          <td>Simulate Talkback B. Runs Talk B actions from the Talkback tab.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="fieldset-hint" style="margin-top:0.6rem">
+      Trigger actions are configured in the <strong>Trigger</strong> tab.
+      Talkback actions are configured in the <strong>Talkback</strong> tab.
+    </p>
+  </div>
+</section>
+
 <!-- ═══════════════════════════════════════════════════════ TOOLS ════════════ -->
 <section class="tab-content" id="tab-tools">
   <h2>Tools &amp; Diagnostics</h2>
@@ -488,6 +580,7 @@
     <tr><th>Web UI (AP)</th>      <td><a id="tool-ap-link" href="#">http://192.168.4.1</a></td></tr>
     <tr><th>mDNS hostname</th>    <td><a href="http://talkback-calllight.local">http://talkback-calllight.local</a></td></tr>
     <tr><th>STA IP Address</th>   <td id="tool-sta-ip">—</td></tr>
+    <tr><th>Web UI (STA)</th>    <td><a id="tool-sta-link" href="#" style="display:none">—</a><span id="tool-sta-nolink" style="color:var(--text-dim)">Not connected</span></td></tr>
   </table>
 </section>
 

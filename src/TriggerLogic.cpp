@@ -3,6 +3,7 @@
 // =============================================================================
 
 #include "TriggerLogic.h"
+#include "ActionEngine.h"
 #include "ConfigManager.h"
 #include "config.h"
 #include <Arduino.h>
@@ -53,6 +54,7 @@ void TriggerLogic::loop() {
     }
 
     // ── State machine ─────────────────────────────────────────────────────────
+    bool prevTriggered = _triggered;
 
     if (!_triggered) {
         // Trigger rising edge
@@ -71,7 +73,7 @@ void TriggerLogic::loop() {
                 if (now - _holdStartMs >= c.holdTimeMs) {
                     _inHold    = false;
                     // Start release delay
-                    _inRelease     = true;
+                    _inRelease      = true;
                     _releaseStartMs = now;
                 }
             } else if (_inRelease) {
@@ -88,5 +90,14 @@ void TriggerLogic::loop() {
             _holdStartMs = now;
             _inRelease   = false;
         }
+    }
+
+    // ── Fire actions on edges ─────────────────────────────────────────────────
+    if (_triggered && !prevTriggered) {
+        ActionEngine::execute(Config.triggerOnJson, ACT_SRC_TRIGGER);
+    }
+    if (!_triggered && prevTriggered) {
+        ActionEngine::execute(Config.triggerOffJson, ACT_SRC_TRIGGER);
+        ActionEngine::clearOutput(ACT_SRC_TRIGGER);
     }
 }

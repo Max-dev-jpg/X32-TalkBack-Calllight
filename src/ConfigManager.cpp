@@ -67,10 +67,18 @@ void ConfigManager::applyDefaults()
     // Talkback Engine
     _cfg.tbEnabled = false;
     _cfg.tbMonitor = TB_MONITOR_A;
-    _cfg.tbAOnJson[0] = '\0';
+    _cfg.tbAOnJson[0]  = '\0';
     _cfg.tbAOffJson[0] = '\0';
-    _cfg.tbBOnJson[0] = '\0';
+    _cfg.tbBOnJson[0]  = '\0';
     _cfg.tbBOffJson[0] = '\0';
+
+    // Trigger Actions
+    _cfg.triggerOnJson[0]  = '\0';
+    _cfg.triggerOffJson[0] = '\0';
+
+    // External OSC Receiver
+    _cfg.extOscEnabled = false;
+    _cfg.extOscPort    = DEFAULT_EXT_OSC_PORT;
 
     // LED
     _cfg.ledPin = DEFAULT_LED_DATA_PIN;

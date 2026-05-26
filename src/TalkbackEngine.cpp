@@ -1,25 +1,28 @@
 // =============================================================================
-// TalkbackEngine.cpp
+// TalkbackEngine.cpp  –  Monitors X32/M32 talkback buttons; delegates actions
 // =============================================================================
 
 #include "TalkbackEngine.h"
+#include "ActionEngine.h"
 #include "ConfigManager.h"
 #include "OSCHandler.h"
 #include "config.h"
 #include <Arduino.h>
 #include <WiFi.h>
-#include <ArduinoJson.h>
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 void TalkbackEngine::begin() {
-    _stateA       = false;
-    _stateB       = false;
-    _outputActive = false;
+    _stateA = false;
+    _stateB = false;
+
+    // Clear any output overrides that TB may have left
+    ActionEngine::clearOutput(ACT_SRC_TB_A);
+    ActionEngine::clearOutput(ACT_SRC_TB_B);
 
     if (!Config.tbEnabled) return;
 
-    // Re-open UDP (stop first so begin() is safe on config change)
+    // Re-open UDP (stop first so begin() is idempotent on config changes)
     _udp.stop();
     _udpOpen = false;
 
@@ -53,115 +56,30 @@ void TalkbackEngine::sendNoArg(const String& address) {
     sendQuery(address);
 }
 
-// ── Channel helpers ───────────────────────────────────────────────────────────
-
-uint8_t TalkbackEngine::channelToSoloID(uint8_t chType, uint8_t chNum) {
-    switch (chType) {
-        case CH_INPUT:  return SOLO_OFFSET_INPUT  + chNum;   // 1-32
-        case CH_AUXIN:  return SOLO_OFFSET_AUXIN  + chNum;   // 33-40
-        case CH_FXRTN:  return SOLO_OFFSET_FXRTN  + chNum;   // 41-48
-        case CH_BUS:    return SOLO_OFFSET_BUS     + chNum;   // 49-64
-        case CH_MATRIX: return SOLO_OFFSET_MATRIX  + chNum;   // 65-70
-        case CH_MAIN:   return SOLO_ID_MAIN_LR;               // 71
-        case CH_MONO:   return SOLO_ID_MAIN_MONO;             // 72
-        case CH_DCA:    return SOLO_OFFSET_DCA     + chNum;   // 73-80
-        default:        return chNum;
-    }
-}
-
-String TalkbackEngine::buildMutePath(uint8_t chType, uint8_t chNum) {
-    char buf[36];
-    switch (chType) {
-        case CH_INPUT:  snprintf(buf, sizeof(buf), "/ch/%02u/mix/on",    chNum); break;
-        case CH_AUXIN:  snprintf(buf, sizeof(buf), "/auxin/%02u/mix/on", chNum); break;
-        case CH_FXRTN:  snprintf(buf, sizeof(buf), "/fxrtn/%02u/mix/on", chNum); break;
-        case CH_BUS:    snprintf(buf, sizeof(buf), "/bus/%02u/mix/on",   chNum); break;
-        case CH_MATRIX: snprintf(buf, sizeof(buf), "/mtx/%02u/mix/on",   chNum); break;
-        case CH_DCA:    snprintf(buf, sizeof(buf), "/dca/%u/on",         chNum); break;
-        case CH_MAIN:   strlcpy(buf, "/main/st/mix/on", sizeof(buf));            break;
-        case CH_MONO:   strlcpy(buf, "/main/m/mix/on",  sizeof(buf));            break;
-        default:        buf[0] = '\0';                                            break;
-    }
-    return String(buf);
-}
-
-// ── Action executor ───────────────────────────────────────────────────────────
-
-void TalkbackEngine::executeActions(const char* jsonStr) {
-    if (!jsonStr || jsonStr[0] == '\0') return;
-
-    StaticJsonDocument<1024> doc;
-    DeserializationError err = deserializeJson(doc, jsonStr);
-    if (err) {
-        Serial.printf("[TB] Action JSON parse error: %s\n", err.c_str());
-        return;
-    }
-
-    JsonArray arr = doc.as<JsonArray>();
-    for (JsonObject act : arr) {
-        const char* t = act["t"] | "";
-
-        if (strcmp(t, "clearSolo") == 0) {
-            sendInt(TB_CLEARSOLO_PATH, 1);
-            Serial.println("[TB]   -> clearSolo");
-
-        } else if (strcmp(t, "solo") == 0) {
-            uint8_t id = channelToSoloID(act["ct"] | (uint8_t)0,
-                                          act["cn"] | (uint8_t)1);
-            char idStr[3]; // 2 digits + null terminator
-            snprintf(idStr, sizeof(idStr), "%02u", id);
-            sendInt(String(TB_SOLOSW_BASE) + idStr, 1);
-            Serial.printf("[TB]   -> solo  id=%u\n", id);
-
-        } else if (strcmp(t, "unsolo") == 0) {
-            uint8_t id = channelToSoloID(act["ct"] | (uint8_t)0,
-                                          act["cn"] | (uint8_t)1);
-            char idStr[3]; // 2 digits + null terminator
-            snprintf(idStr, sizeof(idStr), "%02u", id);
-            sendInt(String(TB_SOLOSW_BASE) + idStr, 0);
-            Serial.printf("[TB]   -> unsolo  id=%u\n", id);
-
-        } else if (strcmp(t, "mute") == 0) {
-            String path = buildMutePath(act["ct"] | (uint8_t)0,
-                                         act["cn"] | (uint8_t)1);
-            if (path.length()) sendInt(path, 0);   // 0 = muted on X32/M32
-            Serial.printf("[TB]   -> mute  %s\n", path.c_str());
-
-        } else if (strcmp(t, "unmute") == 0) {
-            String path = buildMutePath(act["ct"] | (uint8_t)0,
-                                         act["cn"] | (uint8_t)1);
-            if (path.length()) sendInt(path, 1);   // 1 = active/unmuted
-            Serial.printf("[TB]   -> unmute  %s\n", path.c_str());
-
-        } else if (strcmp(t, "osc") == 0) {
-            const char* p = act["p"] | "";
-            int32_t v     = act["v"] | (int32_t)0;
-            if (p[0] != '\0') {
-                sendInt(String(p), v);
-                Serial.printf("[TB]   -> osc  %s = %d\n", p, v);
-            }
-
-        } else if (strcmp(t, "out") == 0) {
-            _outputActive = act["s"] | false;
-            Serial.printf("[TB]   -> output forced %s\n",
-                          _outputActive ? "ON" : "OFF");
-        }
-    }
-}
-
 // ── State-change handlers ─────────────────────────────────────────────────────
 
 void TalkbackEngine::onTalkbackOn(bool isA) {
-    Serial.printf("[TB] TALKBACK %s  ON\n", isA ? "A" : "B");
-    executeActions(isA ? Config.tbAOnJson : Config.tbBOnJson);
+    Serial.printf("[TB] TALKBACK %s ON\n", isA ? "A" : "B");
+    ActionEngine::execute(isA ? Config.tbAOnJson : Config.tbBOnJson,
+                          isA ? ACT_SRC_TB_A    : ACT_SRC_TB_B);
 }
 
 void TalkbackEngine::onTalkbackOff(bool isA) {
-    Serial.printf("[TB] TALKBACK %s  OFF\n", isA ? "A" : "B");
-    executeActions(isA ? Config.tbAOffJson : Config.tbBOffJson);
-    // Clear output override once both buttons are released
-    if (!_stateA && !_stateB) {
-        _outputActive = false;
+    Serial.printf("[TB] TALKBACK %s OFF\n", isA ? "A" : "B");
+    ActionEngine::execute(isA ? Config.tbAOffJson : Config.tbBOffJson,
+                          isA ? ACT_SRC_TB_A      : ACT_SRC_TB_B);
+    // Clear this button's output override regardless of what the action list says
+    ActionEngine::clearOutput(isA ? ACT_SRC_TB_A : ACT_SRC_TB_B);
+}
+
+// ── External simulation (from OSC receiver) ───────────────────────────────────
+
+void TalkbackEngine::simulateTalkback(bool isA, bool active) {
+    bool& state = isA ? _stateA : _stateB;
+    if (active != state) {
+        state = active;
+        if (active) onTalkbackOn(isA);
+        else        onTalkbackOff(isA);
     }
 }
 

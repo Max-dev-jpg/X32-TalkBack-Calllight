@@ -63,6 +63,16 @@ struct DeviceConfig {
     char     tbAOffJson[TB_ACTION_JSON_LEN];  // actions when Talk A releases
     char     tbBOnJson [TB_ACTION_JSON_LEN];  // actions when Talk B activates
     char     tbBOffJson[TB_ACTION_JSON_LEN];  // actions when Talk B releases
+
+    // ── Trigger Actions ───────────────────────────────────────────────────────
+    // Executed when the mixer-channel trigger fires or releases
+    char     triggerOnJson [TB_ACTION_JSON_LEN]; // actions on trigger activate
+    char     triggerOffJson[TB_ACTION_JSON_LEN]; // actions on trigger release
+
+    // ── External OSC Receiver ─────────────────────────────────────────────────
+    // Listens for /calllight/* commands from Companion or any OSC controller
+    bool     extOscEnabled;   // enable the external OSC receiver
+    uint16_t extOscPort;      // UDP port to listen on (default 8000)
 };
 
 // =============================================================================

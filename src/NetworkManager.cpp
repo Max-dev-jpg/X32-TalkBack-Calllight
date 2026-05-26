@@ -56,6 +56,10 @@ void NetworkManager::startSTA() {
             sn.fromString(Config.staticSubnet)) {
             WiFi.config(ip, gw, sn);
         }
+    } else {
+        // On ESP32, WiFi.config() persists across WiFi.begin() calls.
+        // Must explicitly clear static settings to re-enable DHCP.
+        WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
     }
 
     WiFi.begin(Config.wifiSSID, Config.wifiPassword);
@@ -80,8 +84,8 @@ void NetworkManager::checkSTAConnection() {
 }
 
 void NetworkManager::reconnectSTA() {
-    WiFi.disconnect();
-    delay(100);
+    WiFi.disconnect(true);   // true = also clear SSID/password from driver
+    delay(200);
     startSTA();
 }
 

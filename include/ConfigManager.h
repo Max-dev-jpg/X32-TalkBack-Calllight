@@ -6,7 +6,32 @@
 #include <Arduino.h>
 #include "config.h"
 
-// All device settings in one flat struct — serialised to/from NVS.
+// ── Per-trigger configuration ─────────────────────────────────────────────────
+// Each trigger instance has its own channel source, signal processing params,
+// invert flag, and on/off action lists.
+struct TriggerConfig {
+    bool     enabled;
+    // ── Channel source ────────────────────────────────────────────────────────
+    uint8_t  channelType;       // CH_INPUT / CH_BUS / CH_MATRIX / CH_DCA /
+                                // CH_AUXIN / CH_FXRTN / CH_MAIN / CH_MONO
+    uint8_t  channelNumber;     // 1-based; unused for CH_MAIN / CH_MONO
+    uint8_t  signalSource;      // SIG_FADER / SIG_METER / SIG_MUTE
+    char     customOSCPath[64]; // overrides auto-built path when non-empty
+    // ── Signal processing ────────────────────────────────────────────────────
+    float    threshold;
+    float    hysteresis;
+    float    smoothing;         // EMA alpha (0.01 – 1.0, higher = faster)
+    uint32_t holdTimeMs;
+    uint32_t releaseDelayMs;
+    uint32_t debounceMs;
+    bool     invert;            // if true: trigger fires when signal < threshold
+    // ── Actions ──────────────────────────────────────────────────────────────
+    char     onJson [TB_ACTION_JSON_LEN]; // JSON array, executed on activate
+    char     offJson[TB_ACTION_JSON_LEN]; // JSON array, executed on release
+};
+
+// ── All device settings in one flat struct ────────────────────────────────────
+// Serialised to/from NVS by StorageManager.
 struct DeviceConfig {
     // ── Network ──────────────────────────────────────────────────────────────
     char apPassword[64];
@@ -17,23 +42,13 @@ struct DeviceConfig {
     char staticGateway[16];
     char staticSubnet[16];
 
-    // ── Mixer ────────────────────────────────────────────────────────────────
+    // ── Mixer connection ─────────────────────────────────────────────────────
     char     mixerIP[16];
     uint16_t oscTxPort;
     uint16_t oscRxPort;
-    uint8_t  mixerType;      // MIXER_X32 / MIXER_M32
-    uint8_t  channelType;    // CH_INPUT / CH_BUS / CH_MATRIX / CH_DCA
-    uint8_t  channelNumber;  // 1-32
-    uint8_t  signalSource;   // SIG_FADER / SIG_METER / SIG_MUTE
-    char     customOSCPath[64]; // overrides auto-generated path when non-empty
 
-    // ── Trigger ──────────────────────────────────────────────────────────────
-    float    threshold;
-    uint32_t holdTimeMs;
-    uint32_t releaseDelayMs;
-    float    hysteresis;
-    float    smoothing;       // EMA alpha  (0.0-1.0, higher = more responsive)
-    uint32_t debounceMs;
+    // ── Multi-trigger ────────────────────────────────────────────────────────
+    TriggerConfig triggers[MAX_TRIGGERS];
 
     // ── Output ───────────────────────────────────────────────────────────────
     uint8_t  outputType;     // OUTPUT_GPIO / OUTPUT_WS2812 / OUTPUT_BOTH
@@ -51,28 +66,17 @@ struct DeviceConfig {
     uint8_t  ledB;
 
     // ── Talkback Engine ───────────────────────────────────────────────────────
-    // Each list stores a JSON array of action objects, e.g.:
-    //   [{"t":"clearSolo"},{"t":"solo","ct":0,"cn":1},{"t":"out","s":true}]
     // Action types: clearSolo | solo | unsolo | mute | unmute | osc | out
-    //   solo/unsolo/mute/unmute: ct=chType, cn=chNum (1-based)
-    //   osc:  p=oscPath (string), v=value (int)
-    //   out:  s=state (bool) — forces call-light output on/off
-    bool     tbEnabled;       // enable the talkback engine
+    bool     tbEnabled;
     uint8_t  tbMonitor;       // TB_MONITOR_A / _B / _BOTH
-    char     tbAOnJson [TB_ACTION_JSON_LEN];  // actions when Talk A activates
-    char     tbAOffJson[TB_ACTION_JSON_LEN];  // actions when Talk A releases
-    char     tbBOnJson [TB_ACTION_JSON_LEN];  // actions when Talk B activates
-    char     tbBOffJson[TB_ACTION_JSON_LEN];  // actions when Talk B releases
-
-    // ── Trigger Actions ───────────────────────────────────────────────────────
-    // Executed when the mixer-channel trigger fires or releases
-    char     triggerOnJson [TB_ACTION_JSON_LEN]; // actions on trigger activate
-    char     triggerOffJson[TB_ACTION_JSON_LEN]; // actions on trigger release
+    char     tbAOnJson [TB_ACTION_JSON_LEN];
+    char     tbAOffJson[TB_ACTION_JSON_LEN];
+    char     tbBOnJson [TB_ACTION_JSON_LEN];
+    char     tbBOffJson[TB_ACTION_JSON_LEN];
 
     // ── External OSC Receiver ─────────────────────────────────────────────────
-    // Listens for /calllight/* commands from Companion or any OSC controller
-    bool     extOscEnabled;   // enable the external OSC receiver
-    uint16_t extOscPort;      // UDP port to listen on (default 8000)
+    bool     extOscEnabled;
+    uint16_t extOscPort;
 };
 
 // =============================================================================
@@ -85,20 +89,19 @@ public:
         return inst;
     }
 
-    // Initialise: fill defaults, then overlay saved NVS values
     void begin();
-
-    // Save all settings to NVS
     bool save();
-
-    // Reset to compile-time defaults and save
     void resetToDefaults();
 
-    // Build the OSC path for the currently configured channel + signal
-    String buildOSCPath() const;
+    // Build the X32 OSC path for a given trigger's channel + signal config
+    String  buildOSCPathForTrigger(const TriggerConfig& t) const;
+
+    // Return the /meters/6 channel index for a trigger's channel type/number
+    // Returns -1 if the channel type does not support meter subscription (e.g. DCA)
+    int32_t meterChannelId(const TriggerConfig& t) const;
 
     // Direct access to the config struct
-    DeviceConfig& cfg() { return _cfg; }
+    DeviceConfig&       cfg()       { return _cfg; }
     const DeviceConfig& cfg() const { return _cfg; }
 
 private:

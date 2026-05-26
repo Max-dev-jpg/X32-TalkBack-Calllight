@@ -9,30 +9,52 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 void MixerConnection::begin() {
     Serial.println("[Mixer] Initialising UDP...");
+    if (_udpOpen) {
+        _udp.stop();
+        _udpOpen = false;
+    }
     if (_udp.begin(Config.oscRxPort)) {
         _udpOpen = true;
         Serial.printf("[Mixer] Listening on UDP port %d\n", Config.oscRxPort);
     } else {
         Serial.println("[Mixer] UDP begin FAILED!");
     }
+    rebuildPaths();
 }
 
 void MixerConnection::reconnect() {
     Serial.println("[Mixer] Reconnecting...");
-    if (_udpOpen) {
-        _udp.stop();
-        _udpOpen = false;
-    }
-    begin();
-    _lastXRemoteMs  = 0;  // force immediate /xremote send
+    if (_udpOpen) { _udp.stop(); _udpOpen = false; }
+    _lastXRemoteMs  = 0;
     _lastPollMs     = 0;
     _lastResponseMs = 0;
     _connected      = false;
+    begin();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Rebuild resolved path / alias strings ─────────────────────────────────────
+
+void MixerConnection::rebuildPaths() {
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& t = Config.triggers[n];
+        if (!t.enabled) {
+            _triggerPaths[n] = "";
+            continue;
+        }
+        if (t.signalSource == SIG_METER) {
+            // Responses arrive addressed to our alias (e.g. "/mt0")
+            _triggerPaths[n] = String("/mt") + n;
+        } else {
+            _triggerPaths[n] = ConfigManager::instance().buildOSCPathForTrigger(t);
+        }
+    }
+}
+
+// ── Outgoing messages ─────────────────────────────────────────────────────────
 
 void MixerConnection::sendXRemote() {
     if (!_udpOpen) return;
@@ -42,22 +64,48 @@ void MixerConnection::sendXRemote() {
     _udp.endPacket();
 }
 
-void MixerConnection::sendQuery() {
+// Poll fader/mute paths for all enabled non-meter triggers
+void MixerConnection::sendFaderMuteQueries() {
     if (!_udpOpen) return;
-    String path = ConfigManager::instance().buildOSCPath();
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& t = Config.triggers[n];
+        if (!t.enabled || t.signalSource == SIG_METER) continue;
 
-    size_t len;
-    if (Config.signalSource == SIG_METER) {
-        // Subscribe to meter bus
-        len = OSCHandler::buildStringMsg("/meters", path, _txBuf, sizeof(_txBuf));
-    } else {
-        len = OSCHandler::buildQuery(path, _txBuf, sizeof(_txBuf));
+        const String& path = _triggerPaths[n];
+        if (path.length() == 0) continue;
+
+        size_t len = OSCHandler::buildQuery(path, _txBuf, sizeof(_txBuf));
+        _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+        _udp.write(_txBuf, len);
+        _udp.endPacket();
     }
-
-    _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
-    _udp.write(_txBuf, len);
-    _udp.endPacket();
 }
+
+// Subscribe or renew /batchsubscribe for all enabled meter triggers
+// Called every XREMOTE_INTERVAL_MS (same cadence as /xremote).
+void MixerConnection::sendMeterSubscriptions() {
+    if (!_udpOpen) return;
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& t = Config.triggers[n];
+        if (!t.enabled || t.signalSource != SIG_METER) continue;
+
+        int32_t chId = ConfigManager::instance().meterChannelId(t);
+        if (chId < 0) continue; // DCA not available on /meters/6
+
+        String alias = String("/mt") + n;
+        // tf=10 → 10 frames × 5 ms = 50 ms per update; subscription lives 10 s
+        size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 10,
+                                                     _txBuf, sizeof(_txBuf));
+        _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+        _udp.write(_txBuf, len);
+        _udp.endPacket();
+
+        Serial.printf("[Mixer] /batchsubscribe %s ch=%d\n",
+                      alias.c_str(), (int)chId);
+    }
+}
+
+// ── Incoming messages ─────────────────────────────────────────────────────────
 
 void MixerConnection::processIncoming() {
     int packetSize = _udp.parsePacket();
@@ -69,73 +117,65 @@ void MixerConnection::processIncoming() {
     OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)read);
     if (!msg.valid) return;
 
-    String expectedPath = ConfigManager::instance().buildOSCPath();
+    // Match the message address against each trigger's resolved path / alias
+    bool matched = false;
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        if (_triggerPaths[n].length() == 0) continue;
+        if (msg.address != _triggerPaths[n])  continue;
 
-    // Accept response if address matches our query path
-    if (msg.address == expectedPath || msg.address.startsWith("/meters")) {
         float level = 0.0f;
-
         if (msg.typeTag == 'f') {
             level = msg.floatVal;
         } else if (msg.typeTag == 'i') {
-            // Mute state: /mix/on  —  1 = active, 0 = muted
+            // Mute state: /mix/on → 1 = active, 0 = muted
             level = (float)msg.intVal;
         } else if (msg.typeTag == 'b') {
-            // Meter blob: each channel is an int16 scaled 0..32767
-            // Parse channel index from the path (simplified: use ch 0)
-            if (read >= 12 + 4 + 2) {  // rough guard
-                // Skip to first int16 after OSC headers (best-effort)
-                // A proper implementation would parse the blob length first
-                uint8_t* blob = _rxBuf + (read - 2);
-                int16_t raw = (int16_t)((blob[0] << 8) | blob[1]);
-                level = (float)raw / 32767.0f;
-            }
+            // Blob from /batchsubscribe: floatVal holds the first LE float
+            level = msg.floatVal;
         }
 
-        // Clamp to 0-1
         level = constrain(level, 0.0f, 1.0f);
-        _currentLevel  = level;
-        _lastResponseMs = millis();
+        _triggerLevels[n] = level;
+        matched = true;
+    }
 
+    if (matched) {
+        _lastResponseMs = millis();
         if (!_connected) {
             _connected = true;
-            Serial.printf("[Mixer] Connected  level=%.3f\n", level);
+            Serial.println("[Mixer] Connected.");
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Main loop ─────────────────────────────────────────────────────────────────
 
 void MixerConnection::loop() {
     uint32_t now = millis();
 
-    // Only operate when WiFi is available (AP-only is fine; we check IP)
     if (Config.mixerIP[0] == '\0') return;
 
-    // Renew /xremote subscription
+    // Renew /xremote (covers fader/mute subscriptions) and meter subscriptions
     if (now - _lastXRemoteMs >= XREMOTE_INTERVAL_MS) {
         sendXRemote();
+        sendMeterSubscriptions();
         _lastXRemoteMs = now;
     }
 
-    // Poll configured path
+    // Poll fader/mute paths
     if (now - _lastPollMs >= OSC_POLL_INTERVAL_MS) {
-        sendQuery();
+        sendFaderMuteQueries();
         _lastPollMs = now;
     }
 
-    // Read any incoming UDP packets
-    if (_udpOpen) {
-        processIncoming();
-    }
+    if (_udpOpen) processIncoming();
 
-    // Timeout detection
+    // Timeout
     if (_connected && (now - _lastResponseMs > MIXER_TIMEOUT_MS)) {
         _connected = false;
         Serial.println("[Mixer] Timeout — connection lost.");
     }
 
-    // Attempt reconnect if not connected
     if (!_connected && now - _lastReconnectMs > MIXER_RECONNECT_INTERVAL_MS) {
         if (!_udpOpen) begin();
         _lastReconnectMs = now;

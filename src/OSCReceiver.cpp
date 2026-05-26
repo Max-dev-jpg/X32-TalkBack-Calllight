@@ -41,10 +41,11 @@ void OSCReceiver::handleTrigger(bool on) {
     _extTrigger = on;
     if (on) {
         Serial.println("[XOSC] Trigger ON");
-        ActionEngine::execute(Config.triggerOnJson, ACT_SRC_OSC);
+        // Fire trigger-0 actions via OSC source
+        ActionEngine::execute(Config.triggers[0].onJson, ACT_SRC_OSC);
     } else {
         Serial.println("[XOSC] Trigger OFF");
-        ActionEngine::execute(Config.triggerOffJson, ACT_SRC_OSC);
+        ActionEngine::execute(Config.triggers[0].offJson, ACT_SRC_OSC);
         ActionEngine::clearOutput(ACT_SRC_OSC);
     }
 }

@@ -6,49 +6,49 @@
 #include "config.h"
 #include <Arduino.h>
 
-// ── Open helpers ─────────────────────────────────────────────────────────────
+bool StorageManager::openRW() { return _prefs.begin(NVS_NAMESPACE, false); }
+bool StorageManager::openRO() { return _prefs.begin(NVS_NAMESPACE, true);  }
+void StorageManager::close()  { _prefs.end(); }
 
-bool StorageManager::openRW() {
-    return _prefs.begin(NVS_NAMESPACE, false);
-}
-bool StorageManager::openRO() {
-    return _prefs.begin(NVS_NAMESPACE, true);
-}
-void StorageManager::close() {
-    _prefs.end();
-}
-
-// ── Public API ───────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 bool StorageManager::save(const DeviceConfig& c) {
     if (!openRW()) return false;
 
     // Network
-    _prefs.putString("ap_pw",      c.apPassword);
-    _prefs.putString("wifi_ssid",  c.wifiSSID);
-    _prefs.putString("wifi_pw",    c.wifiPassword);
-    _prefs.putBool  ("use_dhcp",   c.useDHCP);
-    _prefs.putString("s_ip",       c.staticIP);
-    _prefs.putString("s_gw",       c.staticGateway);
-    _prefs.putString("s_sn",       c.staticSubnet);
+    _prefs.putString("ap_pw",     c.apPassword);
+    _prefs.putString("wifi_ssid", c.wifiSSID);
+    _prefs.putString("wifi_pw",   c.wifiPassword);
+    _prefs.putBool  ("use_dhcp",  c.useDHCP);
+    _prefs.putString("s_ip",      c.staticIP);
+    _prefs.putString("s_gw",      c.staticGateway);
+    _prefs.putString("s_sn",      c.staticSubnet);
 
-    // Mixer
-    _prefs.putString("mix_ip",     c.mixerIP);
-    _prefs.putUShort("osc_tx",     c.oscTxPort);
-    _prefs.putUShort("osc_rx",     c.oscRxPort);
-    _prefs.putUChar ("mix_type",   c.mixerType);
-    _prefs.putUChar ("ch_type",    c.channelType);
-    _prefs.putUChar ("ch_num",     c.channelNumber);
-    _prefs.putUChar ("sig_src",    c.signalSource);
-    _prefs.putString("osc_path",   c.customOSCPath);
+    // Mixer connection
+    _prefs.putString("mix_ip",  c.mixerIP);
+    _prefs.putUShort("osc_tx",  c.oscTxPort);
+    _prefs.putUShort("osc_rx",  c.oscRxPort);
 
-    // Trigger
-    _prefs.putFloat ("thresh",     c.threshold);
-    _prefs.putULong ("hold_ms",    c.holdTimeMs);
-    _prefs.putULong ("rel_ms",     c.releaseDelayMs);
-    _prefs.putFloat ("hyst",       c.hysteresis);
-    _prefs.putFloat ("smooth",     c.smoothing);
-    _prefs.putULong ("dbnc_ms",    c.debounceMs);
+    // Triggers — per-trigger keys: t{n}_<field>  (all ≤ 15 chars)
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& t = c.triggers[n];
+        char key[16];
+
+        snprintf(key, sizeof(key), "t%u_en",   n); _prefs.putBool  (key, t.enabled);
+        snprintf(key, sizeof(key), "t%u_ct",   n); _prefs.putUChar (key, t.channelType);
+        snprintf(key, sizeof(key), "t%u_cn",   n); _prefs.putUChar (key, t.channelNumber);
+        snprintf(key, sizeof(key), "t%u_ss",   n); _prefs.putUChar (key, t.signalSource);
+        snprintf(key, sizeof(key), "t%u_pth",  n); _prefs.putString(key, t.customOSCPath);
+        snprintf(key, sizeof(key), "t%u_thr",  n); _prefs.putFloat (key, t.threshold);
+        snprintf(key, sizeof(key), "t%u_hyst", n); _prefs.putFloat (key, t.hysteresis);
+        snprintf(key, sizeof(key), "t%u_smth", n); _prefs.putFloat (key, t.smoothing);
+        snprintf(key, sizeof(key), "t%u_hld",  n); _prefs.putULong (key, t.holdTimeMs);
+        snprintf(key, sizeof(key), "t%u_rel",  n); _prefs.putULong (key, t.releaseDelayMs);
+        snprintf(key, sizeof(key), "t%u_dbnc", n); _prefs.putULong (key, t.debounceMs);
+        snprintf(key, sizeof(key), "t%u_inv",  n); _prefs.putBool  (key, t.invert);
+        snprintf(key, sizeof(key), "t%u_on",   n); _prefs.putString(key, t.onJson);
+        snprintf(key, sizeof(key), "t%u_off",  n); _prefs.putString(key, t.offJson);
+    }
 
     // Output
     _prefs.putUChar ("out_type",   c.outputType);
@@ -56,6 +56,14 @@ bool StorageManager::save(const DeviceConfig& c) {
     _prefs.putBool  ("out_inv",    c.outputInvert);
     _prefs.putUChar ("flash_mode", c.flashMode);
     _prefs.putUShort("flash_spd",  c.flashSpeedMs);
+
+    // LED
+    _prefs.putUChar ("led_pin",  c.ledPin);
+    _prefs.putUShort("led_cnt",  c.ledCount);
+    _prefs.putUChar ("led_bri",  c.ledBrightness);
+    _prefs.putUChar ("led_r",    c.ledR);
+    _prefs.putUChar ("led_g",    c.ledG);
+    _prefs.putUChar ("led_b",    c.ledB);
 
     // Talkback Engine
     _prefs.putBool  ("tb_en",    c.tbEnabled);
@@ -65,25 +73,11 @@ bool StorageManager::save(const DeviceConfig& c) {
     _prefs.putString("tb_b_on",  c.tbBOnJson);
     _prefs.putString("tb_b_off", c.tbBOffJson);
 
-    // Trigger Actions
-    _prefs.putString("tr_on",    c.triggerOnJson);
-    _prefs.putString("tr_off",   c.triggerOffJson);
-
-    // External OSC Receiver
+    // External OSC
     _prefs.putBool  ("xosc_en",   c.extOscEnabled);
     _prefs.putUShort("xosc_port", c.extOscPort);
 
-    // LED
-    _prefs.putUChar ("led_pin",    c.ledPin);
-    _prefs.putUShort("led_cnt",    c.ledCount);
-    _prefs.putUChar ("led_bri",    c.ledBrightness);
-    _prefs.putUChar ("led_r",      c.ledR);
-    _prefs.putUChar ("led_g",      c.ledG);
-    _prefs.putUChar ("led_b",      c.ledB);
-
-    // Marker so we know data is valid on next boot
     _prefs.putBool("initialised", true);
-
     close();
     return true;
 }
@@ -91,7 +85,6 @@ bool StorageManager::save(const DeviceConfig& c) {
 bool StorageManager::load(DeviceConfig& c) {
     if (!openRO()) return false;
 
-    // Check whether the namespace was ever written
     if (!_prefs.getBool("initialised", false)) {
         close();
         return false;
@@ -107,29 +100,45 @@ bool StorageManager::load(DeviceConfig& c) {
     strlcpy(c.staticSubnet,  _prefs.getString("s_sn", c.staticSubnet).c_str(),       sizeof(c.staticSubnet));
 
     // Mixer
-    strlcpy(c.mixerIP,       _prefs.getString("mix_ip",  c.mixerIP).c_str(),         sizeof(c.mixerIP));
-    c.oscTxPort     = _prefs.getUShort("osc_tx",     c.oscTxPort);
-    c.oscRxPort     = _prefs.getUShort("osc_rx",     c.oscRxPort);
-    c.mixerType     = _prefs.getUChar ("mix_type",   c.mixerType);
-    c.channelType   = _prefs.getUChar ("ch_type",    c.channelType);
-    c.channelNumber = _prefs.getUChar ("ch_num",     c.channelNumber);
-    c.signalSource  = _prefs.getUChar ("sig_src",    c.signalSource);
-    strlcpy(c.customOSCPath, _prefs.getString("osc_path", c.customOSCPath).c_str(),  sizeof(c.customOSCPath));
+    strlcpy(c.mixerIP, _prefs.getString("mix_ip", c.mixerIP).c_str(), sizeof(c.mixerIP));
+    c.oscTxPort = _prefs.getUShort("osc_tx", c.oscTxPort);
+    c.oscRxPort = _prefs.getUShort("osc_rx", c.oscRxPort);
 
-    // Trigger
-    c.threshold      = _prefs.getFloat ("thresh",     c.threshold);
-    c.holdTimeMs     = _prefs.getULong ("hold_ms",    c.holdTimeMs);
-    c.releaseDelayMs = _prefs.getULong ("rel_ms",     c.releaseDelayMs);
-    c.hysteresis     = _prefs.getFloat ("hyst",       c.hysteresis);
-    c.smoothing      = _prefs.getFloat ("smooth",     c.smoothing);
-    c.debounceMs     = _prefs.getULong ("dbnc_ms",    c.debounceMs);
+    // Triggers
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        TriggerConfig& t = c.triggers[n];
+        char key[16];
+
+        snprintf(key, sizeof(key), "t%u_en",   n); t.enabled       = _prefs.getBool  (key, t.enabled);
+        snprintf(key, sizeof(key), "t%u_ct",   n); t.channelType   = _prefs.getUChar (key, t.channelType);
+        snprintf(key, sizeof(key), "t%u_cn",   n); t.channelNumber = _prefs.getUChar (key, t.channelNumber);
+        snprintf(key, sizeof(key), "t%u_ss",   n); t.signalSource  = _prefs.getUChar (key, t.signalSource);
+        snprintf(key, sizeof(key), "t%u_pth",  n); strlcpy(t.customOSCPath, _prefs.getString(key, t.customOSCPath).c_str(), sizeof(t.customOSCPath));
+        snprintf(key, sizeof(key), "t%u_thr",  n); t.threshold     = _prefs.getFloat (key, t.threshold);
+        snprintf(key, sizeof(key), "t%u_hyst", n); t.hysteresis    = _prefs.getFloat (key, t.hysteresis);
+        snprintf(key, sizeof(key), "t%u_smth", n); t.smoothing     = _prefs.getFloat (key, t.smoothing);
+        snprintf(key, sizeof(key), "t%u_hld",  n); t.holdTimeMs    = _prefs.getULong (key, t.holdTimeMs);
+        snprintf(key, sizeof(key), "t%u_rel",  n); t.releaseDelayMs= _prefs.getULong (key, t.releaseDelayMs);
+        snprintf(key, sizeof(key), "t%u_dbnc", n); t.debounceMs    = _prefs.getULong (key, t.debounceMs);
+        snprintf(key, sizeof(key), "t%u_inv",  n); t.invert        = _prefs.getBool  (key, t.invert);
+        snprintf(key, sizeof(key), "t%u_on",   n); strlcpy(t.onJson,  _prefs.getString(key, "").c_str(), sizeof(t.onJson));
+        snprintf(key, sizeof(key), "t%u_off",  n); strlcpy(t.offJson, _prefs.getString(key, "").c_str(), sizeof(t.offJson));
+    }
 
     // Output
-    c.outputType    = _prefs.getUChar ("out_type",   c.outputType);
-    c.outputPin     = _prefs.getUChar ("out_pin",    c.outputPin);
-    c.outputInvert  = _prefs.getBool  ("out_inv",    c.outputInvert);
-    c.flashMode     = _prefs.getUChar ("flash_mode", c.flashMode);
-    c.flashSpeedMs  = _prefs.getUShort("flash_spd",  c.flashSpeedMs);
+    c.outputType   = _prefs.getUChar ("out_type",   c.outputType);
+    c.outputPin    = _prefs.getUChar ("out_pin",    c.outputPin);
+    c.outputInvert = _prefs.getBool  ("out_inv",    c.outputInvert);
+    c.flashMode    = _prefs.getUChar ("flash_mode", c.flashMode);
+    c.flashSpeedMs = _prefs.getUShort("flash_spd",  c.flashSpeedMs);
+
+    // LED
+    c.ledPin        = _prefs.getUChar ("led_pin",  c.ledPin);
+    c.ledCount      = _prefs.getUShort("led_cnt",  c.ledCount);
+    c.ledBrightness = _prefs.getUChar ("led_bri",  c.ledBrightness);
+    c.ledR          = _prefs.getUChar ("led_r",    c.ledR);
+    c.ledG          = _prefs.getUChar ("led_g",    c.ledG);
+    c.ledB          = _prefs.getUChar ("led_b",    c.ledB);
 
     // Talkback Engine
     c.tbEnabled = _prefs.getBool ("tb_en",  c.tbEnabled);
@@ -139,21 +148,9 @@ bool StorageManager::load(DeviceConfig& c) {
     strlcpy(c.tbBOnJson,  _prefs.getString("tb_b_on",  "").c_str(), sizeof(c.tbBOnJson));
     strlcpy(c.tbBOffJson, _prefs.getString("tb_b_off", "").c_str(), sizeof(c.tbBOffJson));
 
-    // Trigger Actions
-    strlcpy(c.triggerOnJson,  _prefs.getString("tr_on",  "").c_str(), sizeof(c.triggerOnJson));
-    strlcpy(c.triggerOffJson, _prefs.getString("tr_off", "").c_str(), sizeof(c.triggerOffJson));
-
-    // External OSC Receiver
+    // External OSC
     c.extOscEnabled = _prefs.getBool  ("xosc_en",   c.extOscEnabled);
     c.extOscPort    = _prefs.getUShort("xosc_port", c.extOscPort);
-
-    // LED
-    c.ledPin        = _prefs.getUChar ("led_pin",    c.ledPin);
-    c.ledCount      = _prefs.getUShort("led_cnt",    c.ledCount);
-    c.ledBrightness = _prefs.getUChar ("led_bri",    c.ledBrightness);
-    c.ledR          = _prefs.getUChar ("led_r",      c.ledR);
-    c.ledG          = _prefs.getUChar ("led_g",      c.ledG);
-    c.ledB          = _prefs.getUChar ("led_b",      c.ledB);
 
     close();
     return true;

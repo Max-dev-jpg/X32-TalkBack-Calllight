@@ -6,7 +6,7 @@
 #include "ConfigManager.h"
 #include "NetworkManager.h"
 #include "MixerConnection.h"
-#include "TriggerLogic.h"
+#include "TriggerManager.h"
 #include "OutputController.h"
 #include "LEDController.h"
 #include "TalkbackEngine.h"
@@ -21,16 +21,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 static String buildStatusJSON() {
-    DynamicJsonDocument doc(768);
-    auto& nm   = NetworkManager::instance();
-    auto& mix  = MixerConnection::instance();
-    auto& trig = TriggerLogic::instance();
+    DynamicJsonDocument doc(1024);
+    auto& nm  = NetworkManager::instance();
+    auto& mix = MixerConnection::instance();
+    auto& tm  = TriggerManager::instance();
 
     doc["type"]           = "status";
     doc["mixerConnected"] = mix.isConnected();
-    doc["level"]          = mix.getCurrentLevel();
-    doc["smoothed"]       = trig.getSmoothedLevel();
-    doc["triggered"]      = trig.isTriggered();
     doc["rssi"]           = nm.getRSSI();
     doc["staConnected"]   = nm.isSTAConnected();
     doc["staIP"]          = nm.getSTAIP();
@@ -46,57 +43,85 @@ static String buildStatusJSON() {
     doc["extOscPort"]     = Config.extOscPort;
     doc["extTrigger"]     = OSCReceiver::instance().isExtTriggerActive();
 
+    // Per-trigger states
+    JsonArray tArr = doc.createNestedArray("triggers");
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        JsonObject t = tArr.createNestedObject();
+        t["triggered"] = tm.isTriggered(n);
+        t["level"]     = mix.getLevelForTrigger(n);
+        t["smoothed"]  = tm.getSmoothedLevel(n);
+        t["enabled"]   = Config.triggers[n].enabled;
+    }
+
+    // Backward-compat fields (trigger 0)
+    doc["level"]     = mix.getLevelForTrigger(0);
+    doc["smoothed"]  = tm.getSmoothedLevel(0);
+    doc["triggered"] = tm.isAnyTriggered();
+
     String out;
     serializeJson(doc, out);
     return out;
 }
 
 static String buildConfigJSON() {
-    DynamicJsonDocument doc(8192);
+    // Estimate: 4 triggers × (fields + up to 1 KB action JSON each) ≈ 12 KB
+    DynamicJsonDocument doc(12288);
     const DeviceConfig& c = Config;
 
     // Network
-    doc["apPassword"]     = c.apPassword;
-    doc["wifiSSID"]       = c.wifiSSID;
-    doc["wifiPassword"]   = c.wifiPassword;
-    doc["useDHCP"]        = c.useDHCP;
-    doc["staticIP"]       = c.staticIP;
-    doc["staticGateway"]  = c.staticGateway;
-    doc["staticSubnet"]   = c.staticSubnet;
+    doc["apPassword"]    = c.apPassword;
+    doc["wifiSSID"]      = c.wifiSSID;
+    doc["wifiPassword"]  = c.wifiPassword;
+    doc["useDHCP"]       = c.useDHCP;
+    doc["staticIP"]      = c.staticIP;
+    doc["staticGateway"] = c.staticGateway;
+    doc["staticSubnet"]  = c.staticSubnet;
 
-    // Mixer
-    doc["mixerIP"]        = c.mixerIP;
-    doc["oscTxPort"]      = c.oscTxPort;
-    doc["oscRxPort"]      = c.oscRxPort;
-    doc["mixerType"]      = c.mixerType;
-    doc["channelType"]    = c.channelType;
-    doc["channelNumber"]  = c.channelNumber;
-    doc["signalSource"]   = c.signalSource;
-    doc["customOSCPath"]  = c.customOSCPath;
-    doc["oscPath"]        = ConfigManager::instance().buildOSCPath();
+    // Mixer connection
+    doc["mixerIP"]   = c.mixerIP;
+    doc["oscTxPort"] = c.oscTxPort;
+    doc["oscRxPort"] = c.oscRxPort;
 
-    // Trigger
-    doc["threshold"]      = c.threshold;
-    doc["holdTimeMs"]     = c.holdTimeMs;
-    doc["releaseDelayMs"] = c.releaseDelayMs;
-    doc["hysteresis"]     = c.hysteresis;
-    doc["smoothing"]      = c.smoothing;
-    doc["debounceMs"]     = c.debounceMs;
+    // Triggers array
+    JsonArray tArr = doc.createNestedArray("triggers");
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& t = c.triggers[n];
+        JsonObject to = tArr.createNestedObject();
+        to["enabled"]       = t.enabled;
+        to["channelType"]   = t.channelType;
+        to["channelNumber"] = t.channelNumber;
+        to["signalSource"]  = t.signalSource;
+        to["customOSCPath"] = t.customOSCPath;
+        to["threshold"]     = t.threshold;
+        to["hysteresis"]    = t.hysteresis;
+        to["smoothing"]     = t.smoothing;
+        to["holdTimeMs"]    = t.holdTimeMs;
+        to["releaseDelayMs"]= t.releaseDelayMs;
+        to["debounceMs"]    = t.debounceMs;
+        to["invert"]        = t.invert;
+        to["onJson"]        = t.onJson;
+        to["offJson"]       = t.offJson;
+        // Resolved OSC path for UI display
+        to["resolvedPath"]  = ConfigManager::instance().buildOSCPathForTrigger(t);
+    }
+
+    // OSC monitor: trigger-0 resolved path (backward compat)
+    doc["oscPath"] = ConfigManager::instance().buildOSCPathForTrigger(c.triggers[0]);
 
     // Output
-    doc["outputType"]     = c.outputType;
-    doc["outputPin"]      = c.outputPin;
-    doc["outputInvert"]   = c.outputInvert;
-    doc["flashMode"]      = c.flashMode;
-    doc["flashSpeedMs"]   = c.flashSpeedMs;
+    doc["outputType"]   = c.outputType;
+    doc["outputPin"]    = c.outputPin;
+    doc["outputInvert"] = c.outputInvert;
+    doc["flashMode"]    = c.flashMode;
+    doc["flashSpeedMs"] = c.flashSpeedMs;
 
     // LED
-    doc["ledPin"]         = c.ledPin;
-    doc["ledCount"]       = c.ledCount;
-    doc["ledBrightness"]  = c.ledBrightness;
-    doc["ledR"]           = c.ledR;
-    doc["ledG"]           = c.ledG;
-    doc["ledB"]           = c.ledB;
+    doc["ledPin"]        = c.ledPin;
+    doc["ledCount"]      = c.ledCount;
+    doc["ledBrightness"] = c.ledBrightness;
+    doc["ledR"]          = c.ledR;
+    doc["ledG"]          = c.ledG;
+    doc["ledB"]          = c.ledB;
 
     // Talkback Engine
     doc["tbEnabled"]  = c.tbEnabled;
@@ -106,11 +131,7 @@ static String buildConfigJSON() {
     doc["tbBOnJson"]  = c.tbBOnJson;
     doc["tbBOffJson"] = c.tbBOffJson;
 
-    // Trigger Actions
-    doc["triggerOnJson"]  = c.triggerOnJson;
-    doc["triggerOffJson"] = c.triggerOffJson;
-
-    // External OSC Receiver
+    // External OSC
     doc["extOscEnabled"] = c.extOscEnabled;
     doc["extOscPort"]    = c.extOscPort;
 
@@ -119,9 +140,8 @@ static String buildConfigJSON() {
     return out;
 }
 
-// Apply a JSON config document to the DeviceConfig struct
 static bool applyConfigJSON(const String& body) {
-    DynamicJsonDocument doc(8192);
+    DynamicJsonDocument doc(12288);
     if (deserializeJson(doc, body) != DeserializationError::Ok) return false;
 
     DeviceConfig& c = Config;
@@ -135,30 +155,42 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("staticGateway")) strlcpy(c.staticGateway, doc["staticGateway"], sizeof(c.staticGateway));
     if (doc.containsKey("staticSubnet"))  strlcpy(c.staticSubnet,  doc["staticSubnet"],  sizeof(c.staticSubnet));
 
-    // Mixer
-    if (doc.containsKey("mixerIP"))       strlcpy(c.mixerIP, doc["mixerIP"], sizeof(c.mixerIP));
-    if (doc.containsKey("oscTxPort"))     c.oscTxPort     = doc["oscTxPort"];
-    if (doc.containsKey("oscRxPort"))     c.oscRxPort     = doc["oscRxPort"];
-    if (doc.containsKey("mixerType"))     c.mixerType     = doc["mixerType"];
-    if (doc.containsKey("channelType"))   c.channelType   = doc["channelType"];
-    if (doc.containsKey("channelNumber")) c.channelNumber = doc["channelNumber"];
-    if (doc.containsKey("signalSource"))  c.signalSource  = doc["signalSource"];
-    if (doc.containsKey("customOSCPath")) strlcpy(c.customOSCPath, doc["customOSCPath"], sizeof(c.customOSCPath));
+    // Mixer connection
+    if (doc.containsKey("mixerIP"))    strlcpy(c.mixerIP, doc["mixerIP"], sizeof(c.mixerIP));
+    if (doc.containsKey("oscTxPort"))  c.oscTxPort = doc["oscTxPort"];
+    if (doc.containsKey("oscRxPort"))  c.oscRxPort = doc["oscRxPort"];
 
-    // Trigger
-    if (doc.containsKey("threshold"))      c.threshold      = doc["threshold"];
-    if (doc.containsKey("holdTimeMs"))     c.holdTimeMs     = doc["holdTimeMs"];
-    if (doc.containsKey("releaseDelayMs")) c.releaseDelayMs = doc["releaseDelayMs"];
-    if (doc.containsKey("hysteresis"))     c.hysteresis     = doc["hysteresis"];
-    if (doc.containsKey("smoothing"))      c.smoothing      = doc["smoothing"];
-    if (doc.containsKey("debounceMs"))     c.debounceMs     = doc["debounceMs"];
+    // Triggers array
+    if (doc.containsKey("triggers")) {
+        JsonArray tArr = doc["triggers"].as<JsonArray>();
+        uint8_t n = 0;
+        for (JsonObject to : tArr) {
+            if (n >= MAX_TRIGGERS) break;
+            TriggerConfig& t = c.triggers[n];
+            if (to.containsKey("enabled"))        t.enabled       = to["enabled"];
+            if (to.containsKey("channelType"))     t.channelType   = to["channelType"];
+            if (to.containsKey("channelNumber"))   t.channelNumber = to["channelNumber"];
+            if (to.containsKey("signalSource"))    t.signalSource  = to["signalSource"];
+            if (to.containsKey("customOSCPath"))   strlcpy(t.customOSCPath, to["customOSCPath"], sizeof(t.customOSCPath));
+            if (to.containsKey("threshold"))       t.threshold     = to["threshold"];
+            if (to.containsKey("hysteresis"))      t.hysteresis    = to["hysteresis"];
+            if (to.containsKey("smoothing"))       t.smoothing     = to["smoothing"];
+            if (to.containsKey("holdTimeMs"))      t.holdTimeMs    = to["holdTimeMs"];
+            if (to.containsKey("releaseDelayMs"))  t.releaseDelayMs= to["releaseDelayMs"];
+            if (to.containsKey("debounceMs"))      t.debounceMs    = to["debounceMs"];
+            if (to.containsKey("invert"))          t.invert        = to["invert"];
+            if (to.containsKey("onJson"))          strlcpy(t.onJson,  to["onJson"],  sizeof(t.onJson));
+            if (to.containsKey("offJson"))         strlcpy(t.offJson, to["offJson"], sizeof(t.offJson));
+            n++;
+        }
+    }
 
     // Output
-    if (doc.containsKey("outputType"))    c.outputType   = doc["outputType"];
-    if (doc.containsKey("outputPin"))     c.outputPin    = doc["outputPin"];
-    if (doc.containsKey("outputInvert"))  c.outputInvert = doc["outputInvert"];
-    if (doc.containsKey("flashMode"))     c.flashMode    = doc["flashMode"];
-    if (doc.containsKey("flashSpeedMs"))  c.flashSpeedMs = doc["flashSpeedMs"];
+    if (doc.containsKey("outputType"))   c.outputType   = doc["outputType"];
+    if (doc.containsKey("outputPin"))    c.outputPin    = doc["outputPin"];
+    if (doc.containsKey("outputInvert")) c.outputInvert = doc["outputInvert"];
+    if (doc.containsKey("flashMode"))    c.flashMode    = doc["flashMode"];
+    if (doc.containsKey("flashSpeedMs")) c.flashSpeedMs = doc["flashSpeedMs"];
 
     // LED
     if (doc.containsKey("ledPin"))        c.ledPin        = doc["ledPin"];
@@ -176,11 +208,7 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("tbBOnJson"))  strlcpy(c.tbBOnJson,  doc["tbBOnJson"],  sizeof(c.tbBOnJson));
     if (doc.containsKey("tbBOffJson")) strlcpy(c.tbBOffJson, doc["tbBOffJson"], sizeof(c.tbBOffJson));
 
-    // Trigger Actions
-    if (doc.containsKey("triggerOnJson"))  strlcpy(c.triggerOnJson,  doc["triggerOnJson"],  sizeof(c.triggerOnJson));
-    if (doc.containsKey("triggerOffJson")) strlcpy(c.triggerOffJson, doc["triggerOffJson"], sizeof(c.triggerOffJson));
-
-    // External OSC Receiver
+    // External OSC
     if (doc.containsKey("extOscEnabled")) c.extOscEnabled = doc["extOscEnabled"];
     if (doc.containsKey("extOscPort"))    c.extOscPort    = doc["extOscPort"];
 
@@ -199,7 +227,6 @@ void WebServerManager::onWSEvent(AsyncWebSocket* srv,
         Serial.printf("[WS] Client #%u connected from %s\n",
                       client->id(),
                       client->remoteIP().toString().c_str());
-        // Send current status immediately on connect
         client->text(buildStatusJSON());
     } else if (type == WS_EVT_DISCONNECT) {
         Serial.printf("[WS] Client #%u disconnected\n", client->id());
@@ -211,7 +238,6 @@ void WebServerManager::onWSEvent(AsyncWebSocket* srv,
 // ─────────────────────────────────────────────────────────────────────────────
 
 void WebServerManager::setupStaticFiles() {
-    // Serve everything in LittleFS with caching headers
     _server.serveStatic("/", LittleFS, "/")
            .setDefaultFile("index.html")
            .setCacheControl("max-age=600");
@@ -223,49 +249,38 @@ void WebServerManager::setupWebSocket() {
 }
 
 void WebServerManager::setupAPI() {
-    // ── GET /api/status ───────────────────────────────────────────────────────
     _server.on("/api/status", HTTP_GET,
         [this](AsyncWebServerRequest* req) { handleGetStatus(req); });
 
-    // ── GET /api/config ───────────────────────────────────────────────────────
     _server.on("/api/config", HTTP_GET,
         [this](AsyncWebServerRequest* req) { handleGetConfig(req); });
 
-    // ── POST /api/config ──────────────────────────────────────────────────────
     _server.on("/api/config", HTTP_POST,
         [this](AsyncWebServerRequest* req) {
-            // Body processing is handled by the body handler below
             req->send(200, "application/json", "{\"ok\":true}");
         },
-        nullptr,  // upload handler
+        nullptr,
         [this](AsyncWebServerRequest* req, uint8_t* data,
                size_t len, size_t index, size_t total) {
             handlePostConfig(req, data, len, index, total);
         });
 
-    // ── POST /api/reboot ──────────────────────────────────────────────────────
     _server.on("/api/reboot", HTTP_POST,
         [this](AsyncWebServerRequest* req) { handleReboot(req); });
 
-    // ── POST /api/reset ───────────────────────────────────────────────────────
     _server.on("/api/reset", HTTP_POST,
         [this](AsyncWebServerRequest* req) { handleReset(req); });
 
-    // ── POST /api/test ────────────────────────────────────────────────────────
     _server.on("/api/test", HTTP_POST,
         [this](AsyncWebServerRequest* req) { handleTestOutput(req); });
 
-    // ── POST /api/reconnect ───────────────────────────────────────────────────
     _server.on("/api/reconnect", HTTP_POST,
         [this](AsyncWebServerRequest* req) { handleReconnect(req); });
 
-    // ── POST /api/monitor  (toggle OSC monitor mode) ──────────────────────────
     _server.on("/api/monitor", HTTP_POST,
         [this](AsyncWebServerRequest* req) { handleMonitorToggle(req); });
 
-    // ── 404 fallback ──────────────────────────────────────────────────────────
     _server.onNotFound([](AsyncWebServerRequest* req) {
-        // For captive portal behaviour: redirect to AP IP
         req->send(404, "text/plain", "Not found");
     });
 }
@@ -285,7 +300,6 @@ void WebServerManager::handleGetConfig(AsyncWebServerRequest* req) {
 void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
                                          size_t index, size_t total) {
-    // Accumulate chunked body
     if (index == 0) {
         _postBody    = "";
         _postExpected = total;
@@ -293,14 +307,13 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
     _postBody += String((char*)data).substring(0, len);
 
     if (index + len >= total) {
-        // Full body received
         if (applyConfigJSON(_postBody)) {
             ConfigManager::instance().save();
-            // Reinit output controllers with new settings
             OutputController::instance().begin();
             LEDController::instance().begin();
             MixerConnection::instance().reconnect();
             TalkbackEngine::instance().begin();
+            TriggerManager::instance().begin();
             OSCReceiver::instance().begin();
             Serial.println("[Web] Config updated.");
         } else {
@@ -317,7 +330,8 @@ void WebServerManager::handleReboot(AsyncWebServerRequest* req) {
 
 void WebServerManager::handleReset(AsyncWebServerRequest* req) {
     ConfigManager::instance().resetToDefaults();
-    req->send(200, "application/json", "{\"ok\":true,\"message\":\"Settings reset. Rebooting...\"}");
+    req->send(200, "application/json",
+              "{\"ok\":true,\"message\":\"Settings reset. Rebooting...\"}");
     delay(500);
     ESP.restart();
 }
@@ -339,7 +353,6 @@ void WebServerManager::handleMonitorToggle(AsyncWebServerRequest* req) {
         ? "{\"ok\":true,\"active\":true}"
         : "{\"ok\":true,\"active\":false}";
     req->send(200, "application/json", body);
-    Serial.printf("[Web] OSC monitor %s\n", _monitorActive ? "started" : "stopped");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -348,7 +361,7 @@ void WebServerManager::handleMonitorToggle(AsyncWebServerRequest* req) {
 
 void WebServerManager::begin() {
     if (!LittleFS.begin(true)) {
-        Serial.println("[Web] LittleFS mount FAILED! Web UI will not be available.");
+        Serial.println("[Web] LittleFS mount FAILED!");
     } else {
         Serial.println("[Web] LittleFS mounted.");
     }
@@ -372,10 +385,10 @@ void WebServerManager::broadcastOSCMonitor() {
 
     DynamicJsonDocument doc(256);
     doc["type"]      = "osc";
-    doc["address"]   = ConfigManager::instance().buildOSCPath();
-    doc["value"]     = MixerConnection::instance().getCurrentLevel();
-    doc["smoothed"]  = TriggerLogic::instance().getSmoothedLevel();
-    doc["triggered"] = TriggerLogic::instance().isTriggered();
+    doc["address"]   = ConfigManager::instance().buildOSCPathForTrigger(Config.triggers[0]);
+    doc["value"]     = MixerConnection::instance().getLevelForTrigger(0);
+    doc["smoothed"]  = TriggerManager::instance().getSmoothedLevel(0);
+    doc["triggered"] = TriggerManager::instance().isTriggered(0);
     doc["ts"]        = millis();
 
     String out;
@@ -388,13 +401,11 @@ void WebServerManager::loop() {
 
     uint32_t now = millis();
 
-    // Regular 1 s status broadcast
     if (now - _lastBroadcastMs >= WS_BROADCAST_INTERVAL) {
         _lastBroadcastMs = now;
         broadcastStatus();
     }
 
-    // Fast 200 ms OSC monitor broadcast (only when monitor is active)
     if (_monitorActive && now - _lastMonitorMs >= 200) {
         _lastMonitorMs = now;
         broadcastOSCMonitor();

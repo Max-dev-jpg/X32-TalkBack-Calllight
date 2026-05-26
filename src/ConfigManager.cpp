@@ -9,7 +9,6 @@
 void ConfigManager::begin()
 {
     applyDefaults();
-    // Overlay with any stored values; silently continue on first boot
     StorageManager::instance().load(_cfg);
     Serial.println("[Config] Configuration loaded.");
 }
@@ -32,115 +31,133 @@ void ConfigManager::applyDefaults()
 {
     // Network
     strlcpy(_cfg.apPassword, DEFAULT_AP_PASSWORD, sizeof(_cfg.apPassword));
-    _cfg.wifiSSID[0] = '\0';
+    _cfg.wifiSSID[0]    = '\0';
     _cfg.wifiPassword[0] = '\0';
     _cfg.useDHCP = true;
-    strlcpy(_cfg.staticIP, "192.168.1.100", sizeof(_cfg.staticIP));
-    strlcpy(_cfg.staticGateway, "192.168.1.1", sizeof(_cfg.staticGateway));
-    strlcpy(_cfg.staticSubnet, "255.255.255.0", sizeof(_cfg.staticSubnet));
+    strlcpy(_cfg.staticIP,      "192.168.1.100",  sizeof(_cfg.staticIP));
+    strlcpy(_cfg.staticGateway, "192.168.1.1",    sizeof(_cfg.staticGateway));
+    strlcpy(_cfg.staticSubnet,  "255.255.255.0",  sizeof(_cfg.staticSubnet));
 
     // Mixer
     strlcpy(_cfg.mixerIP, DEFAULT_MIXER_IP, sizeof(_cfg.mixerIP));
     _cfg.oscTxPort = DEFAULT_OSC_TX_PORT;
     _cfg.oscRxPort = DEFAULT_OSC_RX_PORT;
-    _cfg.mixerType = MIXER_X32;
-    _cfg.channelType = CH_DCA;
-    _cfg.channelNumber = 1;
-    _cfg.signalSource = SIG_FADER;
-    _cfg.customOSCPath[0] = '\0';
 
-    // Trigger
-    _cfg.threshold = DEFAULT_THRESHOLD;
-    _cfg.holdTimeMs = DEFAULT_HOLD_TIME_MS;
-    _cfg.releaseDelayMs = DEFAULT_RELEASE_DELAY_MS;
-    _cfg.hysteresis = DEFAULT_HYSTERESIS;
-    _cfg.smoothing = DEFAULT_SMOOTHING;
-    _cfg.debounceMs = DEFAULT_DEBOUNCE_MS;
+    // Triggers — trigger 0 enabled by default, others disabled
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        TriggerConfig& t = _cfg.triggers[n];
+        t.enabled         = (n == 0);        // only trigger 0 on by default
+        t.channelType     = CH_DCA;
+        t.channelNumber   = 1;
+        t.signalSource    = SIG_FADER;
+        t.customOSCPath[0] = '\0';
+        t.threshold       = DEFAULT_THRESHOLD;
+        t.hysteresis      = DEFAULT_HYSTERESIS;
+        t.smoothing       = DEFAULT_SMOOTHING;
+        t.holdTimeMs      = DEFAULT_HOLD_TIME_MS;
+        t.releaseDelayMs  = DEFAULT_RELEASE_DELAY_MS;
+        t.debounceMs      = DEFAULT_DEBOUNCE_MS;
+        t.invert          = false;
+        t.onJson[0]       = '\0';
+        t.offJson[0]      = '\0';
+    }
 
     // Output
-    _cfg.outputType = OUTPUT_BOTH;
-    _cfg.outputPin = DEFAULT_OUTPUT_PIN;
+    _cfg.outputType   = OUTPUT_BOTH;
+    _cfg.outputPin    = DEFAULT_OUTPUT_PIN;
     _cfg.outputInvert = false;
-    _cfg.flashMode = DEFAULT_FLASH_MODE;
+    _cfg.flashMode    = DEFAULT_FLASH_MODE;
     _cfg.flashSpeedMs = DEFAULT_FLASH_SPEED_MS;
 
+    // LED
+    _cfg.ledPin        = DEFAULT_LED_DATA_PIN;
+    _cfg.ledCount      = DEFAULT_LED_COUNT;
+    _cfg.ledBrightness = DEFAULT_LED_BRIGHTNESS;
+    _cfg.ledR          = DEFAULT_LED_R;
+    _cfg.ledG          = DEFAULT_LED_G;
+    _cfg.ledB          = DEFAULT_LED_B;
+
     // Talkback Engine
-    _cfg.tbEnabled = false;
-    _cfg.tbMonitor = TB_MONITOR_A;
+    _cfg.tbEnabled    = false;
+    _cfg.tbMonitor    = TB_MONITOR_A;
     _cfg.tbAOnJson[0]  = '\0';
     _cfg.tbAOffJson[0] = '\0';
     _cfg.tbBOnJson[0]  = '\0';
     _cfg.tbBOffJson[0] = '\0';
 
-    // Trigger Actions
-    _cfg.triggerOnJson[0]  = '\0';
-    _cfg.triggerOffJson[0] = '\0';
-
-    // External OSC Receiver
+    // External OSC
     _cfg.extOscEnabled = false;
     _cfg.extOscPort    = DEFAULT_EXT_OSC_PORT;
-
-    // LED
-    _cfg.ledPin = DEFAULT_LED_DATA_PIN;
-    _cfg.ledCount = DEFAULT_LED_COUNT;
-    _cfg.ledBrightness = DEFAULT_LED_BRIGHTNESS;
-    _cfg.ledR = DEFAULT_LED_R;
-    _cfg.ledG = DEFAULT_LED_G;
-    _cfg.ledB = DEFAULT_LED_B;
 }
 
-String ConfigManager::buildOSCPath() const
+// =============================================================================
+// OSC path builder
+// =============================================================================
+
+String ConfigManager::buildOSCPathForTrigger(const TriggerConfig& t) const
 {
     // Custom path takes priority
-    if (_cfg.customOSCPath[0] != '\0')
-    {
-        return String(_cfg.customOSCPath);
+    if (t.customOSCPath[0] != '\0')
+        return String(t.customOSCPath);
+
+    // Meter: uses /batchsubscribe — return a display-only representation
+    if (t.signalSource == SIG_METER) {
+        int32_t ch = meterChannelId(t);
+        if (ch < 0) return String("/meters/N_A");
+        return String("/meters/6[ch=") + ch + "]";
     }
 
-    char ch[8];
-    uint8_t n = _cfg.channelNumber;
+    const bool isMute = (t.signalSource == SIG_MUTE);
+    const char* sfx   = isMute ? "/mix/on" : "/mix/fader";
+    char        num[4];
+    uint8_t     n = t.channelNumber;
 
-    // Build base path for the channel type
-    String base;
-    switch (_cfg.channelType)
-    {
-    case CH_INPUT:
-        snprintf(ch, sizeof(ch), "%02d", n);
-        base = String("/ch/") + ch;
-        break;
-    case CH_BUS:
-        snprintf(ch, sizeof(ch), "%02d", n);
-        base = String("/bus/") + ch;
-        break;
-    case CH_MATRIX:
-        snprintf(ch, sizeof(ch), "%02d", n);
-        base = String("/mtx/") + ch;
-        break;
-    case CH_DCA:
-        // DCA uses single digit, no leading zero
-        base = String("/dca/") + n;
-        break;
-    default:
-        base = "/ch/01";
+    switch (t.channelType) {
+        case CH_INPUT:
+            snprintf(num, sizeof(num), "%02u", n);
+            return String("/ch/")    + num + sfx;
+        case CH_BUS:
+            snprintf(num, sizeof(num), "%02u", n);
+            return String("/bus/")   + num + sfx;
+        case CH_MATRIX:
+            snprintf(num, sizeof(num), "%02u", n);
+            return String("/mtx/")   + num + sfx;
+        case CH_AUXIN:
+            snprintf(num, sizeof(num), "%02u", n);
+            return String("/auxin/") + num + sfx;
+        case CH_FXRTN:
+            snprintf(num, sizeof(num), "%02u", n);
+            return String("/fxrtn/") + num + sfx;
+        case CH_DCA:
+            if (isMute) return String("/dca/") + n + "/on";
+            else        return String("/dca/") + n + "/fader";
+        case CH_MAIN:
+            if (isMute) return String("/main/st/mix/on");
+            else        return String("/main/st/mix/fader");
+        case CH_MONO:
+            if (isMute) return String("/main/m/mix/on");
+            else        return String("/main/m/mix/fader");
+        default:
+            return String("/ch/01/mix/fader");
     }
+}
 
-    // Append signal-specific suffix
-    switch (_cfg.signalSource)
-    {
-    case SIG_FADER:
-        if (_cfg.channelType == CH_DCA)
-            return base + "/fader";
-        else
-            return base + "/mix/fader";
-    case SIG_MUTE:
-        if (_cfg.channelType == CH_DCA)
-            return base + "/on";
-        else
-            return base + "/mix/on";
-        return base + "/mix/on";
-    case SIG_METER:
-        return "/meters/0"; // subscribe to meter bus 0
-    default:
-        return base + "/mix/fader";
+// =============================================================================
+// /meters/6 channel index mapping (from X32 OSC Command Reference PDF)
+// Input 1-32 → 0-31,  AuxIn 1-8 → 32-39,  FxRtn 1-8 → 40-47
+// Bus 1-16  → 48-63,  Matrix 1-6 → 64-69,  Main L/R → 70, Main M → 71
+// DCA: not available on /meters/6
+// =============================================================================
+int32_t ConfigManager::meterChannelId(const TriggerConfig& t) const
+{
+    switch (t.channelType) {
+        case CH_INPUT:  return (int32_t)(t.channelNumber - 1);
+        case CH_AUXIN:  return 32 + (int32_t)(t.channelNumber - 1);
+        case CH_FXRTN:  return 40 + (int32_t)(t.channelNumber - 1);
+        case CH_BUS:    return 48 + (int32_t)(t.channelNumber - 1);
+        case CH_MATRIX: return 64 + (int32_t)(t.channelNumber - 1);
+        case CH_MAIN:   return 70;
+        case CH_MONO:   return 71;
+        default:        return -1; // DCA and unknown types not supported
     }
 }

@@ -56,7 +56,7 @@
 #define CH_AUXIN   4   // Aux inputs       1-8
 #define CH_FXRTN   5   // FX returns       1-8
 #define CH_MAIN    6   // Main L/R stereo  (no number)
-#define CH_MONO    7   // Main Mono/Center (no number)
+#define CH_MONO    7   // Main M/C (no number)
 
 #define SIG_FADER  0   // continuous 0.0-1.0  (polled via /xremote)
 #define SIG_METER  1   // meter level 0.0-1.0  (subscribed via /batchsubscribe)

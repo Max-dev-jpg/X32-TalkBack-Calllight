@@ -46,6 +46,10 @@ bool StorageManager::save(const DeviceConfig& c) {
         snprintf(key, sizeof(key), "t%u_rel",  n); _prefs.putULong (key, t.releaseDelayMs);
         snprintf(key, sizeof(key), "t%u_dbnc", n); _prefs.putULong (key, t.debounceMs);
         snprintf(key, sizeof(key), "t%u_inv",  n); _prefs.putBool  (key, t.invert);
+        snprintf(key, sizeof(key), "t%u_lcc",  n); _prefs.putBool  (key, t.useTriggerColor);
+        snprintf(key, sizeof(key), "t%u_lr",   n); _prefs.putUChar (key, t.trigLedR);
+        snprintf(key, sizeof(key), "t%u_lg",   n); _prefs.putUChar (key, t.trigLedG);
+        snprintf(key, sizeof(key), "t%u_lb",   n); _prefs.putUChar (key, t.trigLedB);
         snprintf(key, sizeof(key), "t%u_on",   n); _prefs.putString(key, t.onJson);
         snprintf(key, sizeof(key), "t%u_off",  n); _prefs.putString(key, t.offJson);
     }
@@ -120,7 +124,11 @@ bool StorageManager::load(DeviceConfig& c) {
         snprintf(key, sizeof(key), "t%u_hld",  n); t.holdTimeMs    = _prefs.getULong (key, t.holdTimeMs);
         snprintf(key, sizeof(key), "t%u_rel",  n); t.releaseDelayMs= _prefs.getULong (key, t.releaseDelayMs);
         snprintf(key, sizeof(key), "t%u_dbnc", n); t.debounceMs    = _prefs.getULong (key, t.debounceMs);
-        snprintf(key, sizeof(key), "t%u_inv",  n); t.invert        = _prefs.getBool  (key, t.invert);
+        snprintf(key, sizeof(key), "t%u_inv",  n); t.invert          = _prefs.getBool  (key, t.invert);
+        snprintf(key, sizeof(key), "t%u_lcc",  n); t.useTriggerColor = _prefs.getBool  (key, t.useTriggerColor);
+        snprintf(key, sizeof(key), "t%u_lr",   n); t.trigLedR        = _prefs.getUChar (key, t.trigLedR);
+        snprintf(key, sizeof(key), "t%u_lg",   n); t.trigLedG        = _prefs.getUChar (key, t.trigLedG);
+        snprintf(key, sizeof(key), "t%u_lb",   n); t.trigLedB        = _prefs.getUChar (key, t.trigLedB);
         snprintf(key, sizeof(key), "t%u_on",   n); strlcpy(t.onJson,  _prefs.getString(key, "").c_str(), sizeof(t.onJson));
         snprintf(key, sizeof(key), "t%u_off",  n); strlcpy(t.offJson, _prefs.getString(key, "").c_str(), sizeof(t.offJson));
     }

@@ -25,6 +25,11 @@ struct TriggerConfig {
     uint32_t releaseDelayMs;
     uint32_t debounceMs;
     bool     invert;            // if true: trigger fires when signal < threshold
+    // ── Per-trigger LED color ─────────────────────────────────────────────────
+    bool     useTriggerColor;   // if true: override global LED color when active
+    uint8_t  trigLedR;
+    uint8_t  trigLedG;
+    uint8_t  trigLedB;
     // ── Actions ──────────────────────────────────────────────────────────────
     char     onJson [TB_ACTION_JSON_LEN]; // JSON array, executed on activate
     char     offJson[TB_ACTION_JSON_LEN]; // JSON array, executed on release

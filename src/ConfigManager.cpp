@@ -58,6 +58,10 @@ void ConfigManager::applyDefaults()
         t.releaseDelayMs  = DEFAULT_RELEASE_DELAY_MS;
         t.debounceMs      = DEFAULT_DEBOUNCE_MS;
         t.invert          = false;
+        t.useTriggerColor = false;
+        t.trigLedR        = DEFAULT_LED_R;
+        t.trigLedG        = DEFAULT_LED_G;
+        t.trigLedB        = DEFAULT_LED_B;
         t.onJson[0]       = '\0';
         t.offJson[0]      = '\0';
     }

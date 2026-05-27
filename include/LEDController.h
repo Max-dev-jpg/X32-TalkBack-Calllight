@@ -19,6 +19,9 @@ public:
     void loop();
 
     void setTrigger(bool active);
+    // Override the strip color for the current frame. Call before loop().
+    // Falls back to global Config.ledR/G/B if not called each frame.
+    void setActiveColor(uint8_t r, uint8_t g, uint8_t b);
     void testPulse(uint32_t durationMs = 2000);
 
     bool isActive() const { return _active; }
@@ -31,13 +34,18 @@ private:
     void clearStrip();
 
     // Helpers
-    uint32_t scaledColor(float brightness);  // applies global brightness
+    uint32_t scaledColor(float brightness);  // uses _activeR/G/B
 
     Adafruit_NeoPixel _strip;
     bool     _initialised    = false;
     bool     _active         = false;
     bool     _testMode       = false;
     uint32_t _testEndMs      = 0;
+
+    // Active color (set each frame by main.cpp; defaults to global config)
+    uint8_t  _activeR        = 255;
+    uint8_t  _activeG        = 120;
+    uint8_t  _activeB        = 0;
 
     // Flash timing
     bool     _ledState       = false;

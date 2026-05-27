@@ -640,6 +640,66 @@
       </label>
     </fieldset>
 
+    <fieldset>
+      <legend>Per-Trigger LED Colors</legend>
+      <p class="fieldset-hint">When a trigger is active its color overrides the default color above. First active trigger wins. Enable per trigger with the checkbox.</p>
+      <div class="trig-color-grid">
+
+        <div class="trig-color-row off" id="t0-color-row">
+          <div class="trig-color-name">
+            <input type="checkbox" id="t0-lcc" onchange="updateTrigLedColorVisibility(0)">
+            <span>Trigger 1</span>
+          </div>
+          <div class="trig-color-inputs">
+            <label class="trig-rgb-lbl">R <input type="number" id="t0-lr" min="0" max="255" value="255" oninput="syncTrigColorPicker(0)"></label>
+            <label class="trig-rgb-lbl">G <input type="number" id="t0-lg" min="0" max="255" value="120" oninput="syncTrigColorPicker(0)"></label>
+            <label class="trig-rgb-lbl">B <input type="number" id="t0-lb" min="0" max="255" value="0"   oninput="syncTrigColorPicker(0)"></label>
+            <input type="color" id="t0-lcp" value="#ff7800" oninput="applyTrigColorPicker(0,this)">
+          </div>
+        </div>
+
+        <div class="trig-color-row off" id="t1-color-row">
+          <div class="trig-color-name">
+            <input type="checkbox" id="t1-lcc" onchange="updateTrigLedColorVisibility(1)">
+            <span>Trigger 2</span>
+          </div>
+          <div class="trig-color-inputs">
+            <label class="trig-rgb-lbl">R <input type="number" id="t1-lr" min="0" max="255" value="255" oninput="syncTrigColorPicker(1)"></label>
+            <label class="trig-rgb-lbl">G <input type="number" id="t1-lg" min="0" max="255" value="120" oninput="syncTrigColorPicker(1)"></label>
+            <label class="trig-rgb-lbl">B <input type="number" id="t1-lb" min="0" max="255" value="0"   oninput="syncTrigColorPicker(1)"></label>
+            <input type="color" id="t1-lcp" value="#ff7800" oninput="applyTrigColorPicker(1,this)">
+          </div>
+        </div>
+
+        <div class="trig-color-row off" id="t2-color-row">
+          <div class="trig-color-name">
+            <input type="checkbox" id="t2-lcc" onchange="updateTrigLedColorVisibility(2)">
+            <span>Trigger 3</span>
+          </div>
+          <div class="trig-color-inputs">
+            <label class="trig-rgb-lbl">R <input type="number" id="t2-lr" min="0" max="255" value="255" oninput="syncTrigColorPicker(2)"></label>
+            <label class="trig-rgb-lbl">G <input type="number" id="t2-lg" min="0" max="255" value="120" oninput="syncTrigColorPicker(2)"></label>
+            <label class="trig-rgb-lbl">B <input type="number" id="t2-lb" min="0" max="255" value="0"   oninput="syncTrigColorPicker(2)"></label>
+            <input type="color" id="t2-lcp" value="#ff7800" oninput="applyTrigColorPicker(2,this)">
+          </div>
+        </div>
+
+        <div class="trig-color-row off" id="t3-color-row">
+          <div class="trig-color-name">
+            <input type="checkbox" id="t3-lcc" onchange="updateTrigLedColorVisibility(3)">
+            <span>Trigger 4</span>
+          </div>
+          <div class="trig-color-inputs">
+            <label class="trig-rgb-lbl">R <input type="number" id="t3-lr" min="0" max="255" value="255" oninput="syncTrigColorPicker(3)"></label>
+            <label class="trig-rgb-lbl">G <input type="number" id="t3-lg" min="0" max="255" value="120" oninput="syncTrigColorPicker(3)"></label>
+            <label class="trig-rgb-lbl">B <input type="number" id="t3-lb" min="0" max="255" value="0"   oninput="syncTrigColorPicker(3)"></label>
+            <input type="color" id="t3-lcp" value="#ff7800" oninput="applyTrigColorPicker(3,this)">
+          </div>
+        </div>
+
+      </div>
+    </fieldset>
+
     <div class="form-actions">
       <button type="submit" class="btn-primary">Save &amp; Apply</button>
     </div>

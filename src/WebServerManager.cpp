@@ -98,9 +98,13 @@ static String buildConfigJSON() {
         to["holdTimeMs"]    = t.holdTimeMs;
         to["releaseDelayMs"]= t.releaseDelayMs;
         to["debounceMs"]    = t.debounceMs;
-        to["invert"]        = t.invert;
-        to["onJson"]        = t.onJson;
-        to["offJson"]       = t.offJson;
+        to["invert"]           = t.invert;
+        to["useTriggerColor"]  = t.useTriggerColor;
+        to["trigLedR"]         = t.trigLedR;
+        to["trigLedG"]         = t.trigLedG;
+        to["trigLedB"]         = t.trigLedB;
+        to["onJson"]           = t.onJson;
+        to["offJson"]          = t.offJson;
         // Resolved OSC path for UI display
         to["resolvedPath"]  = ConfigManager::instance().buildOSCPathForTrigger(t);
     }
@@ -178,7 +182,11 @@ static bool applyConfigJSON(const String& body) {
             if (to.containsKey("holdTimeMs"))      t.holdTimeMs    = to["holdTimeMs"];
             if (to.containsKey("releaseDelayMs"))  t.releaseDelayMs= to["releaseDelayMs"];
             if (to.containsKey("debounceMs"))      t.debounceMs    = to["debounceMs"];
-            if (to.containsKey("invert"))          t.invert        = to["invert"];
+            if (to.containsKey("invert"))           t.invert          = to["invert"];
+            if (to.containsKey("useTriggerColor")) t.useTriggerColor = to["useTriggerColor"];
+            if (to.containsKey("trigLedR"))        t.trigLedR        = to["trigLedR"];
+            if (to.containsKey("trigLedG"))        t.trigLedG        = to["trigLedG"];
+            if (to.containsKey("trigLedB"))        t.trigLedB        = to["trigLedB"];
             if (to.containsKey("onJson"))          strlcpy(t.onJson,  to["onJson"],  sizeof(t.onJson));
             if (to.containsKey("offJson"))         strlcpy(t.offJson, to["offJson"], sizeof(t.offJson));
             n++;
@@ -240,7 +248,7 @@ void WebServerManager::onWSEvent(AsyncWebSocket* srv,
 void WebServerManager::setupStaticFiles() {
     _server.serveStatic("/", LittleFS, "/")
            .setDefaultFile("index.html")
-           .setCacheControl("max-age=600");
+           .setCacheControl("no-cache");
 }
 
 void WebServerManager::setupWebSocket() {
@@ -304,7 +312,7 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
         _postBody    = "";
         _postExpected = total;
     }
-    _postBody += String((char*)data).substring(0, len);
+    _postBody += String((char*)data, len);
 
     if (index + len >= total) {
         if (applyConfigJSON(_postBody)) {

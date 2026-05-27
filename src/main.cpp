@@ -87,6 +87,20 @@ void loop() {
 
     if (Config.outputType == OUTPUT_WS2812 || Config.outputType == OUTPUT_BOTH) {
         LEDController::instance().setTrigger(triggered);
+
+        // Per-trigger color override: first active trigger with useTriggerColor
+        // wins; falls back to global Config.ledR/G/B (set inside setTrigger()).
+        for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+            const TriggerConfig& tc = Config.triggers[n];
+            if (tc.enabled && tc.useTriggerColor &&
+                TriggerManager::instance().isTriggered(n)) {
+                LEDController::instance().setActiveColor(tc.trigLedR,
+                                                         tc.trigLedG,
+                                                         tc.trigLedB);
+                break;
+            }
+        }
+
         LEDController::instance().loop();
     }
 

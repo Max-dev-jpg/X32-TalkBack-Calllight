@@ -34,14 +34,25 @@ void LEDController::clearStrip() {
 }
 
 uint32_t LEDController::scaledColor(float brightness) {
-    uint8_t r = (uint8_t)(Config.ledR * brightness);
-    uint8_t g = (uint8_t)(Config.ledG * brightness);
-    uint8_t b = (uint8_t)(Config.ledB * brightness);
+    uint8_t r = (uint8_t)(_activeR * brightness);
+    uint8_t g = (uint8_t)(_activeG * brightness);
+    uint8_t b = (uint8_t)(_activeB * brightness);
     return _strip.Color(r, g, b);
 }
 
 void LEDController::setTrigger(bool active) {
     _active = active;
+    // Reset to global color each frame; main.cpp calls setActiveColor() after
+    // this if a per-trigger override applies.
+    _activeR = Config.ledR;
+    _activeG = Config.ledG;
+    _activeB = Config.ledB;
+}
+
+void LEDController::setActiveColor(uint8_t r, uint8_t g, uint8_t b) {
+    _activeR = r;
+    _activeG = g;
+    _activeB = b;
 }
 
 void LEDController::testPulse(uint32_t durationMs) {

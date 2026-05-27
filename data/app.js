@@ -70,6 +70,32 @@ function onTrigSigSrcChange(n) {
   // Reserved for future use (e.g. hide threshold for mute-only display)
 }
 
+// ── Per-trigger LED color helpers ─────────────────────────────────────────────
+function updateTrigLedColorVisibility(n) {
+  const cb  = document.getElementById('t' + n + '-lcc');
+  const row = document.getElementById('t' + n + '-color-row');
+  if (row) row.classList.toggle('off', !(cb && cb.checked));
+}
+function applyTrigColorPicker(n, picker) {
+  const hex = picker.value;
+  const r = parseInt(hex.slice(1,3), 16);
+  const g = parseInt(hex.slice(3,5), 16);
+  const b = parseInt(hex.slice(5,7), 16);
+  const rEl = document.getElementById('t' + n + '-lr');
+  const gEl = document.getElementById('t' + n + '-lg');
+  const bEl = document.getElementById('t' + n + '-lb');
+  if (rEl) rEl.value = r;
+  if (gEl) gEl.value = g;
+  if (bEl) bEl.value = b;
+}
+function syncTrigColorPicker(n) {
+  const r = parseInt(document.getElementById('t' + n + '-lr').value) || 0;
+  const g = parseInt(document.getElementById('t' + n + '-lg').value) || 0;
+  const b = parseInt(document.getElementById('t' + n + '-lb').value) || 0;
+  const cp = document.getElementById('t' + n + '-lcp');
+  if (cp) cp.value = rgbToHex(r, g, b);
+}
+
 // ── Talkback section visibility ───────────────────────────────────────────────
 function updateTBVisibility() {
   const on = document.getElementById('tb-enabled').checked;
@@ -280,6 +306,15 @@ function loadTriggerConfig(triggers) {
     setVal('t' + n + '-dbnc',    t.debounceMs     ?? 50);
     setChk('t' + n + '-invert',  t.invert);
 
+    // LED color
+    setChk('t' + n + '-lcc', t.useTriggerColor);
+    setVal('t' + n + '-lr',  t.trigLedR ?? 255);
+    setVal('t' + n + '-lg',  t.trigLedG ?? 120);
+    setVal('t' + n + '-lb',  t.trigLedB ?? 0);
+    const lcp = document.getElementById('t' + n + '-lcp');
+    if (lcp) lcp.value = rgbToHex(t.trigLedR ?? 255, t.trigLedG ?? 120, t.trigLedB ?? 0);
+    updateTrigLedColorVisibility(n);
+
     // Resolved path preview
     const prev = document.getElementById('t' + n + '-pathpreview');
     if (prev) prev.textContent = t.resolvedPath || '—';
@@ -315,9 +350,13 @@ function collectTriggers() {
       holdTimeMs:     getInt('t' + n + '-hold'),
       releaseDelayMs: getInt('t' + n + '-rel'),
       debounceMs:     getInt('t' + n + '-dbnc'),
-      invert:         getChk('t' + n + '-invert'),
-      onJson:         JSON.stringify(ts.on),
-      offJson:        JSON.stringify(ts.off),
+      invert:           getChk('t' + n + '-invert'),
+      useTriggerColor:  getChk('t' + n + '-lcc'),
+      trigLedR:         getInt('t' + n + '-lr'),
+      trigLedG:         getInt('t' + n + '-lg'),
+      trigLedB:         getInt('t' + n + '-lb'),
+      onJson:           JSON.stringify(ts.on),
+      offJson:          JSON.stringify(ts.off),
     };
   });
 }
@@ -355,7 +394,15 @@ function bindForm(formId) {
     setTimeout(loadConfig, 800);
   });
 }
-['form-network', 'form-mixer', 'form-output', 'form-osc'].forEach(bindForm);
+['form-network', 'form-mixer', 'form-osc'].forEach(bindForm);
+
+// Output form — saves output settings AND per-trigger colors in one request
+document.getElementById('form-output').addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = Object.assign(collectForm('form-output'), { triggers: collectTriggers() });
+  await apiPost('/api/config', data);
+  setTimeout(loadConfig, 800);
+});
 
 // ── OSC receiver visibility ───────────────────────────────────────────────────
 function updateOscVisibility() {

@@ -9,7 +9,7 @@
 
 // ── Access Point defaults (user can change password via web UI) ───────────────
 #define DEFAULT_AP_SSID        "TalkBack-CallLight"
-#define DEFAULT_AP_PASSWORD    "calllight"
+#define DEFAULT_AP_PASSWORD    "" //no password
 #define AP_CHANNEL             1
 #define AP_MAX_CONNECTIONS     4
 
@@ -83,7 +83,9 @@
 #define DEFAULT_LED_B  0
 
 // ── Reconnect intervals ───────────────────────────────────────────────────────
-#define WIFI_RECONNECT_INTERVAL_MS   10000
+#define WIFI_RECONNECT_STA_INTERVAL_MS   10000
+#define WIFI_SCAN_INTERVAL_AP_WITH_CLIENTS_MS   120000
+#define WIFI_SCAN_INTERVAL_AP_NO_CLIENTS_MS   30000
 #define MIXER_RECONNECT_INTERVAL_MS   5000
 
 // ── Talkback Engine ───────────────────────────────────────────────────────────

@@ -21,9 +21,6 @@ public:
     // Call every loop() iteration
     void loop();
 
-    // Force an immediate STA reconnection attempt
-    void reconnectSTA();
-
     // ── Status accessors ─────────────────────────────────────────────────────
     bool   isSTAConnected()  const { return _staConnected; }
     int8_t getRSSI()         const { return _rssi; }
@@ -38,7 +35,6 @@ private:
     void startSTA();
     void setupMDNS();
     void setupOTA();
-    void checkSTAConnection();
 
     bool     _staConnected        = false;
     bool     _otaInitialised      = false;

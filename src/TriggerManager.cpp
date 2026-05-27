@@ -73,12 +73,14 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
     } else {
         if (!s.rawAbove) {
             if (s.inHold) {
+                // Minimum hold time elapsed? Proceed to release phase
                 if (now - s.holdStart >= c.holdTimeMs) {
                     s.inHold      = false;
                     s.inRelease   = true;
                     s.releaseStart = now;
                 }
             } else if (s.inRelease) {
+                // Release delay elapsed? Deactivate trigger
                 if (now - s.releaseStart >= c.releaseDelayMs) {
                     s.triggered = false;
                     s.inRelease = false;
@@ -86,10 +88,17 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
                 }
             }
         } else {
-            // Signal re-asserted while in hold/release — reset timers
-            s.inHold    = true;
-            s.holdStart = now;
-            s.inRelease = false;
+            // Signal re-asserted. Enforce min hold time from initial trigger            
+            if (s.inRelease) {
+                s.inRelease = false;
+                
+                // Check if Hold-Time is elapsed
+                if (now - s.holdStart < c.holdTimeMs) {
+                    s.inHold = true;
+                } else {
+                    s.inHold = false; 
+                }
+            }
         }
     }
 

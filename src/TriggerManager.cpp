@@ -91,13 +91,7 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
             // Signal re-asserted. Enforce min hold time from initial trigger            
             if (s.inRelease) {
                 s.inRelease = false;
-                
-                // Check if Hold-Time is elapsed
-                if (now - s.holdStart < c.holdTimeMs) {
-                    s.inHold = true;
-                } else {
-                    s.inHold = false; 
-                }
+                s.inHold = true; 
             }
         }
     }

@@ -47,6 +47,12 @@ float OSCHandler::readLEFloat(const uint8_t* p) {
     float f; memcpy(&f, &raw, 4); return f;
 }
 
+// X32/M32 blob header: float count is a little-endian int32
+int32_t OSCHandler::readLEInt(const uint8_t* p) {
+    return (int32_t)((uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+                     ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public encode API
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,13 +165,14 @@ OSCMessage OSCHandler::parse(const uint8_t* buf, size_t len) {
 
         case 'b':
             // X32/M32 blob format (per OSC Command Reference PDF):
-            //   [offset + 0..3]: blob byte count (big-endian int32)
-            //   [offset + 4..7]: float count     (little-endian int32)
+            //   [offset + 0..3]: blob byte count (big-endian int32, per OSC spec)
+            //   [offset + 4..7]: float count     (LITTLE-endian int32, X32-specific)
             //   [offset + 8..]: LE 32-bit floats
             if (offset + 8 <= len) {
-                // blob byte count (BE) — we use it only for bounds checking
+                // blob byte count (BE per OSC spec) — used for bounds checking
                 uint32_t byteCount  = (uint32_t)readBEInt(buf + offset);
-                uint32_t floatCount = (uint32_t)readBEInt(buf + offset + 4);
+                // float count is LE (X32/M32 specific — not standard OSC blob)
+                uint32_t floatCount = (uint32_t)readLEInt(buf + offset + 4);
                 // Sanity: floatCount must fit inside byteCount
                 if (floatCount > 0 && byteCount >= 4 + floatCount * 4) {
                     size_t floatStart = offset + 8;

@@ -4,6 +4,8 @@
 
 'use strict';
 
+const NUM_TRIGGERS = 4;
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -14,16 +16,70 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
+// ── Trigger sub-tab switching ─────────────────────────────────────────────────
+document.querySelectorAll('.trig-subtab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.trig-subtab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.trig-sub-content').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('trig-sub-' + btn.dataset.trig).classList.add('active');
+  });
+});
+
+// ── Trigger enable toggles ────────────────────────────────────────────────────
+function updateTrigBodyVisibility(n) {
+  const en   = document.getElementById('t' + n + '-enabled');
+  const body = document.getElementById('t' + n + '-body');
+  if (en && body) body.classList.toggle('hidden', !en.checked);
+  // Update sub-tab dot
+  const tab = document.querySelector('.trig-subtab[data-trig="' + n + '"]');
+  if (tab) tab.classList.toggle('enabled-dot', en && en.checked);
+}
+for (let n = 0; n < NUM_TRIGGERS; n++) {
+  const cb = document.getElementById('t' + n + '-enabled');
+  if (cb) cb.addEventListener('change', () => updateTrigBodyVisibility(n));
+  updateTrigBodyVisibility(n);
+}
+
+// ── Channel type → update max channel number + disable Meter for DCA ─────────
+const CH_MAX = { 0:32, 1:16, 2:6, 3:8, 4:8, 5:8, 6:0, 7:0 };
+function onTrigChTypeChange(n) {
+  const chType  = parseInt(document.getElementById('t' + n + '-chtype').value);
+  const numLbl  = document.getElementById('t' + n + '-chnum-lbl');
+  const numInp  = document.getElementById('t' + n + '-chnum');
+  const sigSrc  = document.getElementById('t' + n + '-sigsrc');
+
+  const noNum = (chType === 6 || chType === 7); // Main L/R, Main Mono
+  if (numLbl) numLbl.style.display = noNum ? 'none' : '';
+  if (numInp) {
+    numInp.max = CH_MAX[chType] || 32;
+    if (!noNum && parseInt(numInp.value) > (CH_MAX[chType] || 32))
+      numInp.value = 1;
+  }
+
+  // DCA doesn't support meters — hide Meter option
+  if (sigSrc) {
+    const meterOpt = sigSrc.querySelector('option[value="1"]');
+    if (meterOpt) {
+      meterOpt.disabled = (chType === 3); // CH_DCA
+      if (chType === 3 && parseInt(sigSrc.value) === 1) sigSrc.value = '0';
+    }
+  }
+}
+function onTrigSigSrcChange(n) {
+  // Reserved for future use (e.g. hide threshold for mute-only display)
+}
+
 // ── Talkback section visibility ───────────────────────────────────────────────
 function updateTBVisibility() {
   const on = document.getElementById('tb-enabled').checked;
-  document.getElementById('tb-engine-fields') .classList.toggle('hidden', !on);
+  document.getElementById('tb-engine-fields')  .classList.toggle('hidden', !on);
   document.getElementById('tb-advanced-section').classList.toggle('hidden', !on);
 }
 document.getElementById('tb-enabled').addEventListener('change', updateTBVisibility);
 updateTBVisibility();
 
-// ── Talkback sub-tab switching (Talk A / Talk B) ──────────────────────────────
+// ── Talkback sub-tab switching ────────────────────────────────────────────────
 document.querySelectorAll('.tb-subtab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tb-subtab')     .forEach(t => t.classList.remove('active'));
@@ -34,11 +90,11 @@ document.querySelectorAll('.tb-subtab').forEach(btn => {
 });
 
 // ── Action-builder state ──────────────────────────────────────────────────────
-// Keys: aOn/aOff/bOn/bOff  (Talkback A & B)
-//       trOn/trOff          (Trigger actions)
-const tbState = { aOn: [], aOff: [], bOn: [], bOff: [], trOn: [], trOff: [] };
+// Talkback A/B
+const tbState = { aOn: [], aOff: [], bOn: [], bOff: [] };
+// Per-trigger action lists: trigState[n] = { on: [], off: [] }
+const trigState = Array.from({ length: NUM_TRIGGERS }, () => ({ on: [], off: [] }));
 
-// Channel type definitions — values MUST match C++ config.h enum
 const CH_DEFS = [
   { v:0, n:'Input CH',   max:32 },
   { v:4, n:'Aux In',     max:8  },
@@ -46,68 +102,85 @@ const CH_DEFS = [
   { v:1, n:'Mix Bus',    max:16 },
   { v:2, n:'Matrix',     max:6  },
   { v:3, n:'DCA',        max:8  },
-  { v:6, n:'Main L/R',   max:0,  noNum:true },
-  { v:7, n:'Main M/C',  max:0,  noNum:true },
+  { v:6, n:'Main L/R',   max:0, noNum:true },
+  { v:7, n:'Main M/C',   max:0, noNum:true },
 ];
 
-// Action type definitions
 const ACT_DEFS = [
-  { t:'clearSolo', label:'Clear All Solos'   },
-  { t:'solo',      label:'Solo Channel',      hasCh:true  },
-  { t:'unsolo',    label:'Unsolo Channel',    hasCh:true  },
-  { t:'mute',      label:'Mute Channel',      hasCh:true  },
-  { t:'unmute',    label:'Unmute Channel',    hasCh:true  },
-  { t:'osc',       label:'Custom OSC Command',hasOsc:true },
-  { t:'out',       label:'Force Call Light',  hasOut:true },
+  { t:'clearSolo', label:'Clear All Solos'    },
+  { t:'solo',      label:'Solo Channel',       hasCh:true  },
+  { t:'unsolo',    label:'Unsolo Channel',     hasCh:true  },
+  { t:'mute',      label:'Mute Channel',       hasCh:true  },
+  { t:'unmute',    label:'Unmute Channel',     hasCh:true  },
+  { t:'osc',       label:'Custom OSC Command', hasOsc:true },
+  { t:'out',       label:'Force Call Light',   hasOut:true },
 ];
 
 function safeParseJSON(s) {
   try { return JSON.parse(s || '[]') || []; } catch(e) { return []; }
 }
 
-// ── Add-action row initialisation ─────────────────────────────────────────────
-function initAddRow(lk) {
+// ── Add-action row init ───────────────────────────────────────────────────────
+function initAddRow(lk, stateArr) {
   const row = document.getElementById('add-row-' + lk);
   if (!row) return;
-  const opts = ACT_DEFS.map(d =>
-    `<option value="${d.t}">${d.label}</option>`).join('');
+  const opts = ACT_DEFS.map(d => `<option value="${d.t}">${d.label}</option>`).join('');
   row.innerHTML =
     `<select id="add-sel-${lk}">${opts}</select>` +
     `<button type="button" class="btn-secondary"` +
     ` onclick="addAction('${lk}', document.getElementById('add-sel-${lk}').value)">+ Add</button>`;
 }
-['aOn','aOff','bOn','bOff','trOn','trOff'].forEach(initAddRow);
 
-// ── Action CRUD helpers ───────────────────────────────────────────────────────
+// TB action keys
+['aOn','aOff','bOn','bOff'].forEach(lk => initAddRow(lk, tbState));
+// Trigger action keys
+for (let n = 0; n < NUM_TRIGGERS; n++) {
+  initAddRow('t' + n + 'On',  trigState[n]);
+  initAddRow('t' + n + 'Off', trigState[n]);
+}
+
+// ── Unified action state accessor ─────────────────────────────────────────────
+function getActionList(lk) {
+  if (lk in tbState) return tbState[lk];
+  const m = lk.match(/^t(\d+)(On|Off)$/);
+  if (m) return trigState[parseInt(m[1])][m[2].toLowerCase()];
+  return [];
+}
+function setActionList(lk, arr) {
+  if (lk in tbState) { tbState[lk] = arr; return; }
+  const m = lk.match(/^t(\d+)(On|Off)$/);
+  if (m) trigState[parseInt(m[1])][m[2].toLowerCase()] = arr;
+}
+
+// ── Action CRUD ───────────────────────────────────────────────────────────────
 function addAction(lk, type) {
   const def = ACT_DEFS.find(d => d.t === type) || {};
   const a = { t: type };
   if (def.hasCh)  { a.ct = 0; a.cn = 1; }
   if (def.hasOsc) { a.p = ''; a.v = 1;  }
   if (def.hasOut) { a.s = true; }
-  tbState[lk].push(a);
+  getActionList(lk).push(a);
   renderActionList(lk);
 }
 
 function removeAction(lk, idx) {
-  tbState[lk].splice(idx, 1);
+  getActionList(lk).splice(idx, 1);
   renderActionList(lk);
 }
 
 function setActParam(lk, idx, key, val) {
-  if (tbState[lk][idx]) tbState[lk][idx][key] = val;
+  const list = getActionList(lk);
+  if (list[idx]) list[idx][key] = val;
 }
 
-// Called when channel-type select changes — updates max on the number input
 function onChTypeChange(lk, idx, selEl) {
   const ct = CH_DEFS.find(d => d.v === parseInt(selEl.value)) || CH_DEFS[0];
   setActParam(lk, idx, 'ct', parseInt(selEl.value));
-  const card = selEl.closest('.action-card');
+  const card  = selEl.closest('.action-card');
   const numIn = card && card.querySelector('.chnum-inp');
   if (numIn) {
-    numIn.max   = ct.max || 32;
+    numIn.max  = ct.max || 32;
     numIn.style.display = ct.noNum ? 'none' : '';
-    // Clamp current value
     if (!ct.noNum && parseInt(numIn.value) > (ct.max || 32)) {
       numIn.value = ct.max || 1;
       setActParam(lk, idx, 'cn', ct.max || 1);
@@ -115,7 +188,6 @@ function onChTypeChange(lk, idx, selEl) {
   }
 }
 
-// ── Action card renderer ──────────────────────────────────────────────────────
 function renderChOpts(selected) {
   return CH_DEFS.map(d =>
     `<option value="${d.v}"${d.v===selected?' selected':''}>${d.n}</option>`
@@ -125,7 +197,6 @@ function renderChOpts(selected) {
 function renderActionCard(a, lk, i) {
   const def = ACT_DEFS.find(d => d.t === a.t) || { label: a.t };
   let params = '';
-
   if (def.hasCh) {
     const ct = CH_DEFS.find(d => d.v === (a.ct || 0)) || CH_DEFS[0];
     params = `<div class="action-params">
@@ -135,7 +206,7 @@ function renderActionCard(a, lk, i) {
              onchange="setActParam('${lk}',${i},'cn',parseInt(this.value))">
     </div>`;
   } else if (def.hasOsc) {
-    const safeP = (a.p || '').replace(/"/g, '&quot;');
+    const safeP = (a.p || '').replace(/"/g,'&quot;');
     params = `<div class="action-params">
       <input type="text" placeholder="/osc/path" value="${safeP}"
              onchange="setActParam('${lk}',${i},'p',this.value)">
@@ -150,7 +221,6 @@ function renderActionCard(a, lk, i) {
       </select>
     </div>`;
   }
-
   return `<div class="action-card">
     <div class="action-card-hdr">
       <span class="act-label">${def.label}</span>
@@ -163,29 +233,106 @@ function renderActionCard(a, lk, i) {
 function renderActionList(lk) {
   const el = document.getElementById('actions-' + lk);
   if (!el) return;
-  const list = tbState[lk];
+  const list = getActionList(lk);
   el.innerHTML = list.length
-    ? list.map((a, i) => renderActionCard(a, lk, i)).join('')
+    ? list.map((a,i) => renderActionCard(a, lk, i)).join('')
     : '<div class="act-empty">No actions — nothing will be sent.</div>';
 }
 
-// ── Talkback + Trigger action config load ─────────────────────────────────────
+// ── Load config → populate forms ──────────────────────────────────────────────
 function loadTBConfig(c) {
-  document.getElementById('tb-enabled').checked   = !!c.tbEnabled;
-  document.getElementById('tb-monitor').value     = c.tbMonitor ?? 0;
+  const tbEn = document.getElementById('tb-enabled');
+  const tbMon = document.getElementById('tb-monitor');
+  if (tbEn)  tbEn.checked = !!c.tbEnabled;
+  if (tbMon) tbMon.value  = c.tbMonitor ?? 0;
 
   tbState.aOn  = safeParseJSON(c.tbAOnJson);
   tbState.aOff = safeParseJSON(c.tbAOffJson);
   tbState.bOn  = safeParseJSON(c.tbBOnJson);
   tbState.bOff = safeParseJSON(c.tbBOffJson);
-  tbState.trOn  = safeParseJSON(c.triggerOnJson);
-  tbState.trOff = safeParseJSON(c.triggerOffJson);
-  ['aOn','aOff','bOn','bOff','trOn','trOff'].forEach(renderActionList);
-
+  ['aOn','aOff','bOn','bOff'].forEach(renderActionList);
   updateTBVisibility();
 }
 
-// ── Talkback save ────────────────────────────────────────────────────────────
+// Channel-type max map for updating input.max
+const CHMAX = [32, 16, 6, 8, 8, 8, 0, 0];
+
+function loadTriggerConfig(triggers) {
+  if (!Array.isArray(triggers)) return;
+  triggers.forEach((t, n) => {
+    if (n >= NUM_TRIGGERS) return;
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+
+    setChk('t' + n + '-enabled', t.enabled);
+    setVal('t' + n + '-chtype',  t.channelType   ?? 3);
+    setVal('t' + n + '-chnum',   t.channelNumber  ?? 1);
+    setVal('t' + n + '-sigsrc',  t.signalSource   ?? 0);
+    setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
+    setVal('t' + n + '-thresh',  t.threshold      ?? 0.5);
+    setVal('t' + n + '-thresh-n',t.threshold      ?? 0.5);
+    setVal('t' + n + '-hyst',    t.hysteresis     ?? 0.05);
+    setVal('t' + n + '-hyst-n',  t.hysteresis     ?? 0.05);
+    setVal('t' + n + '-smooth',  t.smoothing      ?? 0.15);
+    setVal('t' + n + '-smooth-n',t.smoothing      ?? 0.15);
+    setVal('t' + n + '-hold',    t.holdTimeMs     ?? 500);
+    setVal('t' + n + '-rel',     t.releaseDelayMs ?? 1000);
+    setVal('t' + n + '-dbnc',    t.debounceMs     ?? 50);
+    setChk('t' + n + '-invert',  t.invert);
+
+    // Resolved path preview
+    const prev = document.getElementById('t' + n + '-pathpreview');
+    if (prev) prev.textContent = t.resolvedPath || '—';
+
+    // Apply channel-type constraints
+    onTrigChTypeChange(n);
+    updateTrigBodyVisibility(n);
+
+    // Action lists
+    trigState[n].on  = safeParseJSON(t.onJson);
+    trigState[n].off = safeParseJSON(t.offJson);
+    renderActionList('t' + n + 'On');
+    renderActionList('t' + n + 'Off');
+  });
+}
+
+// ── Save: collect all trigger configs ────────────────────────────────────────
+function collectTriggers() {
+  return trigState.map((ts, n) => {
+    const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+    const getNum = id => { const el = document.getElementById(id); return el ? parseFloat(el.value) : 0; };
+    const getInt = id => { const el = document.getElementById(id); return el ? parseInt(el.value)   : 0; };
+    const getChk = id => { const el = document.getElementById(id); return el ? el.checked : false;       };
+    return {
+      enabled:        getChk('t' + n + '-enabled'),
+      channelType:    getInt('t' + n + '-chtype'),
+      channelNumber:  getInt('t' + n + '-chnum'),
+      signalSource:   getInt('t' + n + '-sigsrc'),
+      customOSCPath:  getVal('t' + n + '-oscpath'),
+      threshold:      getNum('t' + n + '-thresh'),
+      hysteresis:     getNum('t' + n + '-hyst'),
+      smoothing:      getNum('t' + n + '-smooth'),
+      holdTimeMs:     getInt('t' + n + '-hold'),
+      releaseDelayMs: getInt('t' + n + '-rel'),
+      debounceMs:     getInt('t' + n + '-dbnc'),
+      invert:         getChk('t' + n + '-invert'),
+      onJson:         JSON.stringify(ts.on),
+      offJson:        JSON.stringify(ts.off),
+    };
+  });
+}
+
+// ── Form submit handlers ──────────────────────────────────────────────────────
+
+// Trigger form — all 4 triggers in one POST
+document.getElementById('form-trigger').addEventListener('submit', async e => {
+  e.preventDefault();
+  const data = { triggers: collectTriggers() };
+  await apiPost('/api/config', data);
+  setTimeout(loadConfig, 800);
+});
+
+// Talkback form
 document.getElementById('form-talkback').addEventListener('submit', async e => {
   e.preventDefault();
   const data = {
@@ -200,15 +347,15 @@ document.getElementById('form-talkback').addEventListener('submit', async e => {
   setTimeout(loadConfig, 800);
 });
 
-// ── Trigger save (form fields + action JSON) ─────────────────────────────────
-document.getElementById('form-trigger').addEventListener('submit', async e => {
-  e.preventDefault();
-  const data = collectForm('form-trigger');
-  data.triggerOnJson  = JSON.stringify(tbState.trOn);
-  data.triggerOffJson = JSON.stringify(tbState.trOff);
-  await apiPost('/api/config', data);
-  setTimeout(loadConfig, 800);
-});
+// Standard form bindings (no custom logic needed)
+function bindForm(formId) {
+  document.getElementById(formId).addEventListener('submit', async e => {
+    e.preventDefault();
+    await apiPost('/api/config', collectForm(formId));
+    setTimeout(loadConfig, 800);
+  });
+}
+['form-network', 'form-mixer', 'form-output', 'form-osc'].forEach(bindForm);
 
 // ── OSC receiver visibility ───────────────────────────────────────────────────
 function updateOscVisibility() {
@@ -219,7 +366,7 @@ document.getElementById('ext-osc-enabled').addEventListener('change', updateOscV
 updateOscVisibility();
 
 // ── DHCP toggle ──────────────────────────────────────────────────────────────
-const useDhcpCb = document.getElementById('use-dhcp');
+const useDhcpCb    = document.getElementById('use-dhcp');
 const staticFields = document.getElementById('static-ip-fields');
 function updateDhcpVisibility() {
   staticFields.classList.toggle('hidden', useDhcpCb.checked);
@@ -227,7 +374,7 @@ function updateDhcpVisibility() {
 useDhcpCb.addEventListener('change', updateDhcpVisibility);
 updateDhcpVisibility();
 
-// ── Range ↔ number sync ───────────────────────────────────────────────────────
+// ── Range/number sync (named inputs — output form) ────────────────────────────
 function syncNum(rangeEl, numId) {
   document.getElementById(numId).value = rangeEl.value;
 }
@@ -235,8 +382,16 @@ function syncRange(numEl, rangeName) {
   const r = document.querySelector(`[name="${rangeName}"]`);
   if (r) r.value = numEl.value;
 }
+// Range/number sync by element ID (trigger sliders)
+function syncNumById(rangeEl, numId) {
+  document.getElementById(numId).value = rangeEl.value;
+}
+function syncRangeById(numEl, rangeId) {
+  const r = document.getElementById(rangeId);
+  if (r) r.value = numEl.value;
+}
 
-// ── Color picker → R/G/B fields ───────────────────────────────────────────────
+// ── Color picker ──────────────────────────────────────────────────────────────
 function applyColorPicker(picker) {
   const hex = picker.value;
   const r = parseInt(hex.slice(1,3), 16);
@@ -250,31 +405,28 @@ function rgbToHex(r,g,b) {
   return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
 }
 
-// ── Toast notification ────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 let toastTimer = null;
 function showToast(msg, type = '') {
   const el = document.getElementById('toast');
   el.textContent = msg;
-  el.className = 'toast show ' + type;
+  el.className   = 'toast show ' + type;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
 }
 
-// ── Generic API POST ──────────────────────────────────────────────────────────
+// ── API helpers ───────────────────────────────────────────────────────────────
 async function apiPost(url, body = null) {
   try {
     const opts = { method: 'POST' };
     if (body) {
       opts.headers = { 'Content-Type': 'application/json' };
-      opts.body = JSON.stringify(body);
+      opts.body    = JSON.stringify(body);
     }
-    const res = await fetch(url, opts);
+    const res  = await fetch(url, opts);
     const json = await res.json().catch(() => ({}));
-    if (res.ok) {
-      showToast(json.message || 'Done.', 'success');
-    } else {
-      showToast('Error: ' + (json.message || res.status), 'error');
-    }
+    if (res.ok) { showToast(json.message || 'Done.', 'success'); }
+    else        { showToast('Error: ' + (json.message || res.status), 'error'); }
     return json;
   } catch(e) {
     showToast('Request failed: ' + e.message, 'error');
@@ -285,80 +437,54 @@ function confirmAction(url, question) {
   if (confirm(question)) apiPost(url);
 }
 
-// ── Load config from device → populate all forms ─────────────────────────────
+// ── Collect named form fields → object ────────────────────────────────────────
+function collectForm(formId) {
+  const form = document.getElementById(formId);
+  const data = {};
+  form.querySelectorAll('[name]').forEach(el => {
+    const key = el.name;
+    if (el.type === 'checkbox')                          data[key] = el.checked;
+    else if (el.type === 'number' || el.tagName === 'SELECT') data[key] = el.type === 'number' ? parseFloat(el.value) : parseInt(el.value, 10);
+    else                                                 data[key] = el.value;
+  });
+  return data;
+}
+
+// ── Load full config from device ──────────────────────────────────────────────
 async function loadConfig() {
   try {
     const res = await fetch('/api/config');
     if (!res.ok) return;
     const c = await res.json();
 
-    // Populate every named input/select in all forms
-    const allInputs = document.querySelectorAll('[name]');
-    allInputs.forEach(el => {
+    // Standard named inputs (network, mixer, output, osc)
+    document.querySelectorAll('[name]').forEach(el => {
       const key = el.name;
       if (!(key in c)) return;
-      if (el.type === 'checkbox') {
-        el.checked = !!c[key];
-      } else if (el.type === 'range' || el.type === 'number' || el.tagName === 'SELECT') {
-        el.value = c[key];
-      } else {
-        el.value = c[key] ?? '';
-      }
+      if      (el.type === 'checkbox') el.checked = !!c[key];
+      else if (el.type === 'range' || el.type === 'number' || el.tagName === 'SELECT') el.value = c[key];
+      else el.value = c[key] ?? '';
     });
 
-    // Sync range ↔ number display values
-    syncNum(document.querySelector('[name="threshold"]'),   'threshold-num');
-    syncNum(document.querySelector('[name="hysteresis"]'),  'hysteresis-num');
-    syncNum(document.querySelector('[name="smoothing"]'),   'smoothing-num');
-    syncNum(document.querySelector('[name="ledBrightness"]'), 'led-bri-num');
+    // Output form slider sync
+    const lbr = document.querySelector('[name="ledBrightness"]');
+    if (lbr) document.getElementById('led-bri-num').value = lbr.value;
 
-    // Sync color picker
+    // Color picker
     const r = c.ledR ?? 255, g = c.ledG ?? 120, b = c.ledB ?? 0;
-    document.getElementById('color-picker').value = rgbToHex(r, g, b);
-
-    // Update OSC path preview
-    document.getElementById('osc-path-preview').textContent = c.oscPath || '—';
+    const cp = document.getElementById('color-picker');
+    if (cp) cp.value = rgbToHex(r, g, b);
 
     updateDhcpVisibility();
     updateOscVisibility();
     loadTBConfig(c);
+    loadTriggerConfig(c.triggers);
   } catch(e) {
     console.warn('Config load failed:', e);
   }
 }
 
-// ── Collect form data → object ────────────────────────────────────────────────
-function collectForm(formId) {
-  const form = document.getElementById(formId);
-  const data = {};
-  form.querySelectorAll('[name]').forEach(el => {
-    const key = el.name;
-    if (el.type === 'checkbox') {
-      data[key] = el.checked;
-    } else if (el.type === 'number' || el.tagName === 'SELECT') {
-      data[key] = el.type === 'number' ? parseFloat(el.value) : parseInt(el.value, 10);
-    } else {
-      data[key] = el.value;
-    }
-  });
-  return data;
-}
-
-// ── Form submit handlers ──────────────────────────────────────────────────────
-function bindForm(formId) {
-  document.getElementById(formId).addEventListener('submit', async e => {
-    e.preventDefault();
-    const data = collectForm(formId);
-    await apiPost('/api/config', data);
-    // Reload config to reflect any server-side changes (e.g. resolved OSC path)
-    setTimeout(loadConfig, 800);
-  });
-}
-// Note: form-trigger has a custom handler (includes trigger action JSON)
-//       form-talkback has a custom handler (includes talkback action JSON)
-['form-network', 'form-mixer', 'form-output', 'form-osc'].forEach(bindForm);
-
-// ── Live status updates via WebSocket ────────────────────────────────────────
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 let ws = null;
 let wsRetryTimer = null;
 let wsRetryDelay = 1000;
@@ -366,49 +492,31 @@ let wsRetryDelay = 1000;
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(proto + '//' + location.host + '/ws');
-
-  ws.onopen = () => {
-    console.log('[WS] Connected');
-    wsRetryDelay = 1000;
-    clearTimeout(wsRetryTimer);
-  };
-
+  ws.onopen  = () => { console.log('[WS] Connected'); wsRetryDelay = 1000; clearTimeout(wsRetryTimer); };
   ws.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
-      if (d.type === 'osc') {
-        updateOSCMonitor(d);
-      } else {
-        updateStatus(d);
-      }
-    } catch(err) { /* ignore */ }
+      if (d.type === 'osc') updateOSCMonitor(d);
+      else                  updateStatus(d);
+    } catch(_) {}
   };
-
   ws.onclose = ws.onerror = () => {
-    console.log('[WS] Disconnected – retrying in', wsRetryDelay, 'ms');
-    wsRetryTimer = setTimeout(() => {
-      wsRetryDelay = Math.min(wsRetryDelay * 1.5, 15000);
-      connectWS();
-    }, wsRetryDelay);
+    wsRetryTimer = setTimeout(() => { wsRetryDelay = Math.min(wsRetryDelay * 1.5, 15000); connectWS(); }, wsRetryDelay);
   };
 }
 
-// ── Apply status JSON to DOM ──────────────────────────────────────────────────
+// ── Status update ─────────────────────────────────────────────────────────────
 function updateStatus(d) {
-  // Helper: safe set text
-  const setText = (id, val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  };
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
 
-  // Mixer connection
+  // Mixer
   const mixOk = !!d.mixerConnected;
   setText('st-mixer-con', mixOk ? 'Connected' : 'Disconnected');
-  document.getElementById('st-mixer-con').style.color =
-    mixOk ? 'var(--success)' : 'var(--danger)';
+  const mixEl = document.getElementById('st-mixer-con');
+  if (mixEl) mixEl.style.color = mixOk ? 'var(--success)' : 'var(--danger)';
 
-  // Level
-  const lv = parseFloat(d.level  ?? 0).toFixed(3);
+  // Trigger 0 level (backward compat — main status cards)
+  const lv = parseFloat(d.level    ?? 0).toFixed(3);
   const sv = parseFloat(d.smoothed ?? 0).toFixed(3);
   setText('st-level',  lv);
   setText('st-smooth', sv);
@@ -417,132 +525,104 @@ function updateStatus(d) {
   if (lvBar) lvBar.style.width = (parseFloat(lv) * 100) + '%';
   if (svBar) svBar.style.width = (parseFloat(sv) * 100) + '%';
 
-  // Trigger
-  const trig = !!d.triggered;
-  const trigEl = document.getElementById('st-trig');
-  if (trigEl) {
-    trigEl.textContent = trig ? 'ACTIVE' : 'IDLE';
-    trigEl.style.color = trig ? 'var(--warn)' : 'var(--text-dim)';
+  // Per-trigger status chips
+  const chipRow = document.getElementById('trig-status-row');
+  if (chipRow && Array.isArray(d.triggers)) {
+    // Build or refresh chips
+    d.triggers.forEach((t, n) => {
+      let chip = document.getElementById('trig-chip-' + n);
+      if (!chip) {
+        chip = document.createElement('div');
+        chip.id = 'trig-chip-' + n;
+        chip.className = 'trig-status-chip';
+        chipRow.appendChild(chip);
+      }
+      chip.textContent = 'T' + (n + 1) + ': ' + (t.triggered ? 'ACTIVE' : 'Idle');
+      chip.classList.toggle('active',   t.enabled && t.triggered);
+      chip.classList.toggle('disabled', !t.enabled);
+    });
   }
+
+  // Header badge — triggered if any trigger is active
+  const anyTriggered = !!d.triggered;
+  setBadge('hdr-mixer',   mixOk,       'ok',     'Mixer');
+  setBadge('hdr-trigger', anyTriggered,'active',  anyTriggered ? 'TRIGGERED' : 'Idle');
+  setBadge('hdr-wifi',    !!d.staConnected, 'ok', d.staConnected ? (d.staIP || 'WiFi') : 'WiFi');
 
   // WiFi
   const wifiOk = !!d.staConnected;
   setText('st-wifi', wifiOk ? (d.staIP || 'Connected') : 'Not connected');
-  setText('st-rssi',  (d.rssi ?? '—') + ' dBm');
+  setText('st-rssi',       (d.rssi ?? '—') + ' dBm');
   setText('st-ap-clients', d.apClients ?? '—');
 
   // Uptime
   const up = parseInt(d.uptime ?? 0);
-  const h = Math.floor(up / 3600), m = Math.floor((up % 3600) / 60), s = up % 60;
-  setText('st-uptime', `${h}h ${m}m ${s}s`);
+  setText('st-uptime', `${Math.floor(up/3600)}h ${Math.floor((up%3600)/60)}m ${up%60}s`);
 
   // Misc
-  setText('st-heap', d.freeHeap ? (Math.round(d.freeHeap / 1024) + ' KB') : '—');
-  setText('st-fw', d.firmware ?? '—');
-  setText('st-ap-ip', d.apIP ?? '—');
+  setText('st-heap',   d.freeHeap ? (Math.round(d.freeHeap/1024) + ' KB') : '—');
+  setText('st-fw',     d.firmware  ?? '—');
+  setText('st-ap-ip',  d.apIP      ?? '—');
   setText('st-sta-ip', wifiOk ? (d.staIP ?? '—') : '—');
 
-  // STA IP clickable link in status tab
+  // STA IP link in status tab
   const stStaLink = document.getElementById('st-sta-link');
   if (stStaLink) {
-    if (wifiOk && d.staIP) {
-      stStaLink.href = 'http://' + d.staIP;
-      stStaLink.style.display = '';
-    } else {
-      stStaLink.style.display = 'none';
-    }
+    if (wifiOk && d.staIP) { stStaLink.href = 'http://' + d.staIP; stStaLink.style.display = ''; }
+    else                    stStaLink.style.display = 'none';
   }
 
-  // Header badges
-  setBadge('hdr-mixer',   mixOk,   'ok',     'Mixer');
-  setBadge('hdr-trigger', trig,    'active',  trig ? 'TRIGGERED' : 'Idle', !!trig);
-  setBadge('hdr-wifi',    wifiOk,  'ok',     wifiOk ? (d.staIP ? d.staIP : 'WiFi') : 'WiFi');
-
-  // Tools tab info
+  // Tools tab
   const toolApIp = document.getElementById('tool-ap-ip');
   if (toolApIp) toolApIp.textContent = d.apIP ?? '—';
   const toolStaIp = document.getElementById('tool-sta-ip');
   if (toolStaIp) toolStaIp.textContent = wifiOk ? (d.staIP ?? '—') : '—';
   const toolApLink = document.getElementById('tool-ap-link');
-  if (toolApLink && d.apIP) {
-    toolApLink.href = 'http://' + d.apIP;
-    toolApLink.textContent = 'http://' + d.apIP;
-  }
-  // Tools tab: STA link
-  const toolStaLink = document.getElementById('tool-sta-link');
-  const toolStaNoLink = document.getElementById('tool-sta-nolink');
-  if (toolStaLink && toolStaNoLink) {
+  if (toolApLink && d.apIP) { toolApLink.href = 'http://' + d.apIP; toolApLink.textContent = 'http://' + d.apIP; }
+  const toolStaLink  = document.getElementById('tool-sta-link');
+  const toolStaNoLnk = document.getElementById('tool-sta-nolink');
+  if (toolStaLink && toolStaNoLnk) {
     if (wifiOk && d.staIP) {
-      toolStaLink.href = 'http://' + d.staIP;
-      toolStaLink.textContent = 'http://' + d.staIP;
-      toolStaLink.style.display = '';
-      toolStaNoLink.style.display = 'none';
+      toolStaLink.href = 'http://' + d.staIP; toolStaLink.textContent = 'http://' + d.staIP;
+      toolStaLink.style.display = ''; toolStaNoLnk.style.display = 'none';
     } else {
-      toolStaLink.style.display = 'none';
-      toolStaNoLink.style.display = '';
+      toolStaLink.style.display = 'none'; toolStaNoLnk.style.display = '';
     }
   }
 
-  // OSC tab: connection info
+  // OSC tab info
   const oscStaIp = document.getElementById('osc-sta-ip');
   if (oscStaIp) oscStaIp.textContent = wifiOk ? (d.staIP ?? '—') : 'Not connected';
   const oscPort = document.getElementById('osc-listen-port');
   if (oscPort) oscPort.textContent = d.extOscEnabled ? (d.extOscPort ?? '—') : 'Disabled';
 
-  // Talkback state
+  // Talkback indicators
   const tbEnabled = !!d.tbEnabled;
-  const tbA = !!d.tbA;
-  const tbB = !!d.tbB;
-
-  // Status tab: small cards
-  const stTbA = document.getElementById('st-tb-a');
-  const stTbB = document.getElementById('st-tb-b');
-  if (stTbA) {
-    stTbA.textContent = tbEnabled ? (tbA ? 'ACTIVE' : 'Idle') : 'Disabled';
-    stTbA.style.color = (tbEnabled && tbA) ? 'var(--warn)' : 'var(--text-dim)';
-  }
-  if (stTbB) {
-    stTbB.textContent = tbEnabled ? (tbB ? 'ACTIVE' : 'Idle') : 'Disabled';
-    stTbB.style.color = (tbEnabled && tbB) ? 'var(--warn)' : 'var(--text-dim)';
-  }
-
-  // Talkback tab: large circular indicators
+  const tbA = !!d.tbA, tbB = !!d.tbB;
+  setText('st-tb-a', tbEnabled ? (tbA ? 'ACTIVE' : 'Idle') : 'Disabled');
+  setText('st-tb-b', tbEnabled ? (tbB ? 'ACTIVE' : 'Idle') : 'Disabled');
+  const stTbAEl = document.getElementById('st-tb-a');
+  const stTbBEl = document.getElementById('st-tb-b');
+  if (stTbAEl) stTbAEl.style.color = (tbEnabled && tbA) ? 'var(--warn)' : 'var(--text-dim)';
+  if (stTbBEl) stTbBEl.style.color = (tbEnabled && tbB) ? 'var(--warn)' : 'var(--text-dim)';
   const tbIndA = document.getElementById('tb-ind-a');
   const tbIndB = document.getElementById('tb-ind-b');
   if (tbIndA) tbIndA.classList.toggle('active', tbEnabled && tbA);
   if (tbIndB) tbIndB.classList.toggle('active', tbEnabled && tbB);
 }
 
-function setBadge(id, condition, okClass, label, forceBadClass) {
+function setBadge(id, condition, okClass, label) {
   const el = document.getElementById(id);
   if (!el) return;
   el.textContent = label;
-  el.className   = 'badge ' + (condition ? okClass : (forceBadClass === false ? '' : ''));
+  el.className   = 'badge ' + (condition ? okClass : '');
 }
 
-// ── Fallback HTTP polling (if WebSocket not available) ────────────────────────
+// ── HTTP fallback ─────────────────────────────────────────────────────────────
 async function pollStatus() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
-  try {
-    const res = await fetch('/api/status');
-    if (res.ok) updateStatus(await res.json());
-  } catch(e) { /* ignore */ }
+  try { const r = await fetch('/api/status'); if (r.ok) updateStatus(await r.json()); } catch(_) {}
 }
-
-// ── OSC path preview (update on mixer form change) ────────────────────────────
-document.getElementById('form-mixer').addEventListener('change', () => {
-  // Debounced fetch of resolved path
-  clearTimeout(document._oscPreviewTimer);
-  document._oscPreviewTimer = setTimeout(async () => {
-    try {
-      const res = await fetch('/api/config');
-      if (res.ok) {
-        const c = await res.json();
-        document.getElementById('osc-path-preview').textContent = c.oscPath || '—';
-      }
-    } catch(e) {}
-  }, 400);
-});
 
 // ── OSC Monitor ───────────────────────────────────────────────────────────────
 let monitorRunning = false;
@@ -550,32 +630,26 @@ let monitorMin = null, monitorMax = null, monitorSum = 0, monitorCount = 0;
 const MON_LOG_MAX = 60;
 
 async function toggleMonitor() {
-  const res = await fetch('/api/monitor', { method: 'POST' });
+  const res  = await fetch('/api/monitor', { method: 'POST' });
   if (!res.ok) return;
   const json = await res.json();
   monitorRunning = json.active;
-
   const btn = document.getElementById('mon-toggle');
   const log = document.getElementById('mon-log');
-
   if (monitorRunning) {
-    btn.textContent = '⏹ Stop Monitor';
-    btn.className = 'btn-warning';
+    btn.textContent = '⏹ Stop Monitor'; btn.className = 'btn-warning';
     log.classList.add('active');
-    // Show path immediately
-    fetch('/api/config').then(r => r.json()).then(c => {
-      document.getElementById('mon-path').textContent = c.oscPath || '—';
-    }).catch(() => {});
+    fetch('/api/config').then(r=>r.json()).then(c => {
+      if (c.oscPath) document.getElementById('mon-path').textContent = c.oscPath;
+    }).catch(()=>{});
   } else {
-    btn.textContent = '▶ Start Monitor';
-    btn.className = 'btn-primary';
+    btn.textContent = '▶ Start Monitor'; btn.className = 'btn-primary';
   }
 }
 
 function clearMonitor() {
   document.getElementById('mon-log').innerHTML = '';
-  monitorMin = null; monitorMax = null;
-  monitorSum = 0; monitorCount = 0;
+  monitorMin = null; monitorMax = null; monitorSum = 0; monitorCount = 0;
   document.getElementById('mon-min').textContent = '—';
   document.getElementById('mon-max').textContent = '—';
   document.getElementById('mon-avg').textContent = '—';
@@ -583,39 +657,25 @@ function clearMonitor() {
 
 function updateOSCMonitor(d) {
   const val = parseFloat(d.value ?? 0);
-
-  // Large value display
   document.getElementById('mon-value').textContent = val.toFixed(4);
-  document.getElementById('mon-path').textContent = d.address || '—';
-  document.getElementById('mon-bar').style.width = (val * 100) + '%';
-
-  // Running statistics
+  document.getElementById('mon-path').textContent  = d.address || '—';
+  document.getElementById('mon-bar').style.width   = (val * 100) + '%';
   if (monitorMin === null || val < monitorMin) monitorMin = val;
   if (monitorMax === null || val > monitorMax) monitorMax = val;
-  monitorSum += val;
-  monitorCount++;
+  monitorSum += val; monitorCount++;
   document.getElementById('mon-min').textContent = monitorMin.toFixed(4);
   document.getElementById('mon-max').textContent = monitorMax.toFixed(4);
   document.getElementById('mon-avg').textContent = (monitorSum / monitorCount).toFixed(4);
 
-  // Scrolling log row
   const log = document.getElementById('mon-log');
   if (!log.classList.contains('active')) return;
-
-  const ts = new Date().toLocaleTimeString('de-DE', { hour12: false,
-    hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const ts  = new Date().toLocaleTimeString('de-DE', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
   const pct = Math.round(val * 100);
-  const trig = d.triggered ? '<span class="log-trig">▲</span>' : '';
-
   const row = document.createElement('div');
   row.className = 'log-row';
-  row.innerHTML =
-    `<span class="log-ts">${ts}</span>` +
-    `<span class="log-val">${val.toFixed(4)}</span>` +
+  row.innerHTML = `<span class="log-ts">${ts}</span><span class="log-val">${val.toFixed(4)}</span>` +
     `<span class="log-bar"><span class="log-fill" style="width:${pct}%"></span></span>` +
-    trig;
-
-  // Prepend so newest is on top; cap at MON_LOG_MAX rows
+    (d.triggered ? '<span class="log-trig">▲</span>' : '');
   log.insertBefore(row, log.firstChild);
   while (log.children.length > MON_LOG_MAX) log.removeChild(log.lastChild);
 }
@@ -623,4 +683,4 @@ function updateOSCMonitor(d) {
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadConfig();
 connectWS();
-setInterval(pollStatus, 3000);   // fallback poll every 3 s
+setInterval(pollStatus, 3000);

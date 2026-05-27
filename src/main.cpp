@@ -1,14 +1,6 @@
 // =============================================================================
 // main.cpp  –  TalkBack CallLight
 // ESP32 call light controller for Behringer X32 / Midas M32 mixers
-//
-// Boot sequence:
-//   1. Serial + config init
-//   2. Network (AP always on, optional STA)
-//   3. LittleFS + web server
-//   4. Mixer UDP connection
-//   5. Output / LED init
-//   6. Main non-blocking loop
 // =============================================================================
 
 #include <Arduino.h>
@@ -17,7 +9,7 @@
 #include "StorageManager.h"
 #include "NetworkManager.h"
 #include "MixerConnection.h"
-#include "TriggerLogic.h"
+#include "TriggerManager.h"
 #include "OutputController.h"
 #include "LEDController.h"
 #include "WebServerManager.h"
@@ -29,7 +21,7 @@
 
 void setup() {
     Serial.begin(SERIAL_BAUD);
-    delay(200);  // let the serial monitor connect
+    delay(200);
 
     Serial.println("\n========================================");
     Serial.printf ("  TalkBack CallLight  v%s\n", FIRMWARE_VERSION);
@@ -50,19 +42,19 @@ void setup() {
     // ── 4. Mixer OSC connection ───────────────────────────────────────────────
     MixerConnection::instance().begin();
 
-    // ── 5. Trigger logic ─────────────────────────────────────────────────────
-    TriggerLogic::instance().begin();
+    // ── 5. Multi-trigger state machines ───────────────────────────────────────
+    TriggerManager::instance().begin();
 
-    // ── 6. GPIO output ───────────────────────────────────────────────────────
+    // ── 6. GPIO output ────────────────────────────────────────────────────────
     OutputController::instance().begin();
 
-    // ── 7. LED strip ─────────────────────────────────────────────────────────
+    // ── 7. LED strip ──────────────────────────────────────────────────────────
     LEDController::instance().begin();
 
     // ── 8. Talkback Engine ────────────────────────────────────────────────────
     TalkbackEngine::instance().begin();
 
-    // ── 9. Action Engine (shared action executor + output bitmask) ────────────
+    // ── 9. Action Engine (shared executor + output bitmask) ───────────────────
     ActionEngine::begin();
 
     // ── 10. External OSC Receiver ─────────────────────────────────────────────
@@ -74,19 +66,17 @@ void setup() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void loop() {
-    // ── Network (WiFi reconnect, OTA, mDNS) ──────────────────────────────────
+    // Network (WiFi reconnect, OTA, mDNS)
     NetworkManager::instance().loop();
 
-    // ── Mixer: poll OSC, parse responses ─────────────────────────────────────
+    // Mixer: poll OSC, parse responses, update per-trigger levels
     MixerConnection::instance().loop();
 
-    // ── Feed latest level into trigger logic ─────────────────────────────────
-    TriggerLogic::instance().setRawLevel(
-        MixerConnection::instance().getCurrentLevel());
-    TriggerLogic::instance().loop();
+    // Run all trigger state machines (pulls levels from MixerConnection internally)
+    TriggerManager::instance().loop();
 
-    // ── Drive outputs (trigger state OR any action-engine output override) ───
-    bool triggered = TriggerLogic::instance().isTriggered()
+    // Combine all output sources
+    bool triggered = TriggerManager::instance().isAnyTriggered()
                   || ActionEngine::isOutputActive()
                   || OSCReceiver::instance().isExtTriggerActive();
 
@@ -100,12 +90,12 @@ void loop() {
         LEDController::instance().loop();
     }
 
-    // ── Talkback Engine: poll talkback state, send solo commands ─────────────
+    // Talkback Engine
     TalkbackEngine::instance().loop();
 
-    // ── External OSC Receiver ─────────────────────────────────────────────────
+    // External OSC Receiver
     OSCReceiver::instance().loop();
 
-    // ── Web server: WS broadcasts, client cleanup ─────────────────────────────
+    // Web server: WS broadcasts, client cleanup
     WebServerManager::instance().loop();
 }

@@ -58,5 +58,6 @@ private:
                                  size_t offset, String& out);
     static float   readBEFloat(const uint8_t* p);
     static int32_t readBEInt  (const uint8_t* p);
-    static float   readLEFloat(const uint8_t* p);  // little-endian float (blob)
+    static float   readLEFloat(const uint8_t* p);   // little-endian float (blob)
+    static int32_t readLEInt  (const uint8_t* p);   // little-endian int32 (blob header)
 };

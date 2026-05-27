@@ -29,7 +29,7 @@
   <button class="tab active" data-tab="status">Status</button>
   <button class="tab" data-tab="network">Network</button>
   <button class="tab" data-tab="mixer">Mixer</button>
-  <button class="tab" data-tab="trigger">Trigger</button>
+  <button class="tab" data-tab="trigger">Triggers</button>
   <button class="tab" data-tab="output">Output</button>
   <button class="tab" data-tab="talkback">Talkback</button>
   <button class="tab" data-tab="osc">OSC</button>
@@ -41,27 +41,25 @@
 <!-- ═══════════════════════════════════════════════════════ STATUS ═══════════ -->
 <section class="tab-content active" id="tab-status">
   <h2>Live Status</h2>
-  <div class="status-grid">
 
+  <!-- Per-trigger mini status -->
+  <div class="trig-status-row" id="trig-status-row"></div>
+
+  <div class="status-grid">
     <div class="card">
       <div class="card-label">Mixer Connection</div>
       <div class="card-value" id="st-mixer-con">—</div>
     </div>
     <div class="card">
-      <div class="card-label">Signal Level</div>
+      <div class="card-label">Signal Level (T1)</div>
       <div class="card-value mono" id="st-level">0.000</div>
       <div class="level-bar-wrap"><div class="level-bar" id="st-level-bar"></div></div>
     </div>
     <div class="card">
-      <div class="card-label">Smoothed Level</div>
+      <div class="card-label">Smoothed Level (T1)</div>
       <div class="card-value mono" id="st-smooth">0.000</div>
       <div class="level-bar-wrap"><div class="level-bar accent2" id="st-smooth-bar"></div></div>
     </div>
-    <div class="card">
-      <div class="card-label">Trigger State</div>
-      <div class="card-value" id="st-trig">IDLE</div>
-    </div>
-
     <div class="card">
       <div class="card-label">WiFi (STA)</div>
       <div class="card-value" id="st-wifi">—</div>
@@ -78,7 +76,6 @@
       <div class="card-label">Uptime</div>
       <div class="card-value mono" id="st-uptime">—</div>
     </div>
-
     <div class="card">
       <div class="card-label">Free Heap</div>
       <div class="card-value mono" id="st-heap">—</div>
@@ -154,7 +151,7 @@
 
 <!-- ════════════════════════════════════════════════════════ MIXER ═══════════ -->
 <section class="tab-content" id="tab-mixer">
-  <h2>Mixer Settings</h2>
+  <h2>Mixer Connection</h2>
   <form id="form-mixer">
 
     <fieldset>
@@ -162,48 +159,12 @@
       <label>Mixer IP Address
         <input type="text" name="mixerIP" placeholder="192.168.0.100">
       </label>
-      <label>OSC TX Port (to mixer)
+      <label>OSC TX Port <small style="display:inline;margin-left:.4rem">(to mixer, default 10023)</small>
         <input type="number" name="oscTxPort" min="1" max="65535" value="10023">
       </label>
-      <label>OSC RX Port (from mixer)
+      <label>OSC RX Port <small style="display:inline;margin-left:.4rem">(from mixer, default 10024)</small>
         <input type="number" name="oscRxPort" min="1" max="65535" value="10024">
       </label>
-      <label>Mixer Type
-        <select name="mixerType">
-          <option value="0">Behringer X32</option>
-          <option value="1">Midas M32</option>
-        </select>
-      </label>
-    </fieldset>
-
-    <fieldset>
-      <legend>Channel</legend>
-      <label>Channel Type
-        <select name="channelType" id="ch-type">
-          <option value="0">Input Channel</option>
-          <option value="1">Bus</option>
-          <option value="2">Matrix</option>
-          <option value="3">DCA</option>
-        </select>
-      </label>
-      <label>Channel Number
-        <input type="number" name="channelNumber" min="1" max="32" value="1">
-      </label>
-      <label>Signal Source
-        <select name="signalSource">
-          <option value="0">Fader Level</option>
-          <option value="1">Meter Level</option>
-          <option value="2">Mute State</option>
-        </select>
-      </label>
-    </fieldset>
-
-    <fieldset>
-      <legend>Advanced</legend>
-      <label>Custom OSC Path (overrides above if set)
-        <input type="text" name="customOSCPath" placeholder="/ch/01/mix/fader">
-      </label>
-      <div class="info-row">Resolved path: <code id="osc-path-preview">—</code></div>
     </fieldset>
 
     <div class="form-actions">
@@ -212,76 +173,400 @@
   </form>
 </section>
 
-<!-- ══════════════════════════════════════════════════════ TRIGGER ═══════════ -->
+<!-- ══════════════════════════════════════════════════════ TRIGGERS ══════════ -->
 <section class="tab-content" id="tab-trigger">
-  <h2>Trigger Settings</h2>
+  <h2>Triggers</h2>
+  <p class="fieldset-hint" style="margin-bottom:1rem">
+    Each trigger independently monitors a mixer channel and fires its own action list.
+    Up to 4 triggers can run simultaneously. Channel source and signal processing are
+    configured per trigger.
+  </p>
+
+  <!-- Sub-tab bar -->
+  <div class="trig-subtabs" id="trig-subtabs">
+    <button type="button" class="trig-subtab active" data-trig="0">Trigger 1</button>
+    <button type="button" class="trig-subtab"        data-trig="1">Trigger 2</button>
+    <button type="button" class="trig-subtab"        data-trig="2">Trigger 3</button>
+    <button type="button" class="trig-subtab"        data-trig="3">Trigger 4</button>
+  </div>
+
   <form id="form-trigger">
-
-    <fieldset>
-      <legend>Threshold</legend>
-      <label>Threshold (0.0 – 1.0)
-        <div class="range-row">
-          <input type="range" name="threshold" min="0" max="1" step="0.01" value="0.5"
-                 oninput="syncNum(this,'threshold-num')">
-          <input type="number" id="threshold-num" min="0" max="1" step="0.01" value="0.5"
-                 oninput="syncRange(this,'threshold')">
-        </div>
-      </label>
-      <label>Hysteresis (0.0 – 0.5)
-        <div class="range-row">
-          <input type="range" name="hysteresis" min="0" max="0.5" step="0.01" value="0.05"
-                 oninput="syncNum(this,'hysteresis-num')">
-          <input type="number" id="hysteresis-num" min="0" max="0.5" step="0.01" value="0.05"
-                 oninput="syncRange(this,'hysteresis')">
-        </div>
-      </label>
-      <label>Smoothing / EMA alpha (0.01 – 1.0)
-        <div class="range-row">
-          <input type="range" name="smoothing" min="0.01" max="1" step="0.01" value="0.15"
-                 oninput="syncNum(this,'smoothing-num')">
-          <input type="number" id="smoothing-num" min="0.01" max="1" step="0.01" value="0.15"
-                 oninput="syncRange(this,'smoothing')">
-        </div>
-        <small>Lower = more smoothing.  Higher = faster response.</small>
-      </label>
-    </fieldset>
-
-    <fieldset>
-      <legend>Timing</legend>
-      <label>Hold Time (ms) — minimum output ON duration
-        <input type="number" name="holdTimeMs" min="0" max="30000" value="500">
-      </label>
-      <label>Release Delay (ms) — delay after hold before switching off
-        <input type="number" name="releaseDelayMs" min="0" max="30000" value="1000">
-      </label>
-      <label>Debounce (ms)
-        <input type="number" name="debounceMs" min="0" max="5000" value="50">
-      </label>
-    </fieldset>
-
-    <fieldset>
-      <legend>Trigger Actions</legend>
-      <p class="fieldset-hint">Execute OSC commands when the call light activates or releases.<br>These same actions also fire when the call light is triggered via external OSC.</p>
-      <div class="action-section">
-        <div class="action-section-hdr">
-          <span class="act-section-title">On Activate</span>
-          <span class="act-badge act-on">ON</span>
-        </div>
-        <div id="actions-trOn" class="action-list"></div>
-        <div id="add-row-trOn" class="add-row"></div>
+    <!-- Trigger 0 -->
+    <div id="trig-sub-0" class="trig-sub-content active">
+      <div class="trig-enable-row">
+        <span>Enable Trigger 1</span>
+        <input type="checkbox" id="t0-enabled">
       </div>
-      <div class="action-section">
-        <div class="action-section-hdr">
-          <span class="act-section-title">On Release</span>
-          <span class="act-badge act-off">OFF</span>
-        </div>
-        <div id="actions-trOff" class="action-list"></div>
-        <div id="add-row-trOff" class="add-row"></div>
-      </div>
-    </fieldset>
+      <div class="trig-body" id="t0-body">
+        <fieldset>
+          <legend>Channel Source</legend>
+          <label>Channel Type
+            <select id="t0-chtype" onchange="onTrigChTypeChange(0)">
+              <option value="0">Input Channel (1–32)</option>
+              <option value="4">Aux In (1–8)</option>
+              <option value="5">FX Return (1–8)</option>
+              <option value="1">Mix Bus (1–16)</option>
+              <option value="2">Matrix (1–6)</option>
+              <option value="3" selected>DCA (1–8)</option>
+              <option value="6">Main L/R</option>
+              <option value="7">Main Mono/Center</option>
+            </select>
+          </label>
+          <label id="t0-chnum-lbl">Channel Number
+            <input type="number" id="t0-chnum" min="1" max="8" value="1">
+          </label>
+          <label>Signal Source
+            <select id="t0-sigsrc" onchange="onTrigSigSrcChange(0)">
+              <option value="0">Fader Level</option>
+              <option value="1">Meter Level (real-time)</option>
+              <option value="2">Mute State</option>
+            </select>
+          </label>
+          <label>Custom OSC Path <small>(overrides above when set)</small>
+            <input type="text" id="t0-oscpath" placeholder="/ch/01/mix/fader">
+          </label>
+          <div class="info-row">Resolved path: <code id="t0-pathpreview">—</code></div>
+        </fieldset>
 
-    <div class="form-actions">
-      <button type="submit" class="btn-primary">Save &amp; Apply</button>
+        <fieldset>
+          <legend>Threshold &amp; Inversion</legend>
+          <label>Threshold (0.0 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t0-thresh" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncNumById(this,'t0-thresh-n')">
+              <input type="number" id="t0-thresh-n" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncRangeById(this,'t0-thresh')">
+            </div>
+          </label>
+          <label>Hysteresis (0.0 – 0.5)
+            <div class="range-row">
+              <input type="range" id="t0-hyst" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncNumById(this,'t0-hyst-n')">
+              <input type="number" id="t0-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncRangeById(this,'t0-hyst')">
+            </div>
+          </label>
+          <label>Smoothing / EMA alpha (0.01 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t0-smooth" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncNumById(this,'t0-smooth-n')">
+              <input type="number" id="t0-smooth-n" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncRangeById(this,'t0-smooth')">
+            </div>
+            <small>Lower = more smoothing. Higher = faster response.</small>
+          </label>
+          <label class="toggle-row">
+            <span>Invert — fire when signal is BELOW threshold</span>
+            <input type="checkbox" id="t0-invert">
+          </label>
+          <p class="invert-hint">Useful for Mute State: triggers when channel is muted.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Timing</legend>
+          <label>Hold Time (ms) — minimum ON duration after trigger
+            <input type="number" id="t0-hold" min="0" max="30000" value="500">
+          </label>
+          <label>Release Delay (ms) — extra wait before switching off
+            <input type="number" id="t0-rel" min="0" max="30000" value="1000">
+          </label>
+          <label>Debounce (ms)
+            <input type="number" id="t0-dbnc" min="0" max="5000" value="50">
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Actions</legend>
+          <p class="fieldset-hint">Executed when this trigger activates or releases.</p>
+          <div class="action-section">
+            <div class="action-section-hdr">
+              <span class="act-section-title">On Activate</span>
+              <span class="act-badge act-on">ON</span>
+            </div>
+            <div id="actions-t0On" class="action-list"></div>
+            <div id="add-row-t0On" class="add-row"></div>
+          </div>
+          <div class="action-section">
+            <div class="action-section-hdr">
+              <span class="act-section-title">On Release</span>
+              <span class="act-badge act-off">OFF</span>
+            </div>
+            <div id="actions-t0Off" class="action-list"></div>
+            <div id="add-row-t0Off" class="add-row"></div>
+          </div>
+        </fieldset>
+      </div><!-- /t0-body -->
+    </div><!-- /trig-sub-0 -->
+
+    <!-- Trigger 1 -->
+    <div id="trig-sub-1" class="trig-sub-content">
+      <div class="trig-enable-row">
+        <span>Enable Trigger 2</span>
+        <input type="checkbox" id="t1-enabled">
+      </div>
+      <div class="trig-body" id="t1-body">
+        <fieldset>
+          <legend>Channel Source</legend>
+          <label>Channel Type
+            <select id="t1-chtype" onchange="onTrigChTypeChange(1)">
+              <option value="0">Input Channel (1–32)</option>
+              <option value="4">Aux In (1–8)</option>
+              <option value="5">FX Return (1–8)</option>
+              <option value="1">Mix Bus (1–16)</option>
+              <option value="2">Matrix (1–6)</option>
+              <option value="3" selected>DCA (1–8)</option>
+              <option value="6">Main L/R</option>
+              <option value="7">Main Mono/Center</option>
+            </select>
+          </label>
+          <label id="t1-chnum-lbl">Channel Number
+            <input type="number" id="t1-chnum" min="1" max="8" value="1">
+          </label>
+          <label>Signal Source
+            <select id="t1-sigsrc" onchange="onTrigSigSrcChange(1)">
+              <option value="0">Fader Level</option>
+              <option value="1">Meter Level (real-time)</option>
+              <option value="2">Mute State</option>
+            </select>
+          </label>
+          <label>Custom OSC Path <small>(overrides above when set)</small>
+            <input type="text" id="t1-oscpath" placeholder="/ch/01/mix/fader">
+          </label>
+          <div class="info-row">Resolved path: <code id="t1-pathpreview">—</code></div>
+        </fieldset>
+        <fieldset>
+          <legend>Threshold &amp; Inversion</legend>
+          <label>Threshold (0.0 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t1-thresh" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncNumById(this,'t1-thresh-n')">
+              <input type="number" id="t1-thresh-n" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncRangeById(this,'t1-thresh')">
+            </div>
+          </label>
+          <label>Hysteresis (0.0 – 0.5)
+            <div class="range-row">
+              <input type="range" id="t1-hyst" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncNumById(this,'t1-hyst-n')">
+              <input type="number" id="t1-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncRangeById(this,'t1-hyst')">
+            </div>
+          </label>
+          <label>Smoothing / EMA alpha (0.01 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t1-smooth" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncNumById(this,'t1-smooth-n')">
+              <input type="number" id="t1-smooth-n" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncRangeById(this,'t1-smooth')">
+            </div>
+          </label>
+          <label class="toggle-row">
+            <span>Invert — fire when signal is BELOW threshold</span>
+            <input type="checkbox" id="t1-invert">
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Timing</legend>
+          <label>Hold Time (ms)<input type="number" id="t1-hold" min="0" max="30000" value="500"></label>
+          <label>Release Delay (ms)<input type="number" id="t1-rel" min="0" max="30000" value="1000"></label>
+          <label>Debounce (ms)<input type="number" id="t1-dbnc" min="0" max="5000" value="50"></label>
+        </fieldset>
+        <fieldset>
+          <legend>Actions</legend>
+          <div class="action-section">
+            <div class="action-section-hdr"><span class="act-section-title">On Activate</span><span class="act-badge act-on">ON</span></div>
+            <div id="actions-t1On" class="action-list"></div>
+            <div id="add-row-t1On" class="add-row"></div>
+          </div>
+          <div class="action-section">
+            <div class="action-section-hdr"><span class="act-section-title">On Release</span><span class="act-badge act-off">OFF</span></div>
+            <div id="actions-t1Off" class="action-list"></div>
+            <div id="add-row-t1Off" class="add-row"></div>
+          </div>
+        </fieldset>
+      </div>
+    </div><!-- /trig-sub-1 -->
+
+    <!-- Trigger 2 -->
+    <div id="trig-sub-2" class="trig-sub-content">
+      <div class="trig-enable-row">
+        <span>Enable Trigger 3</span>
+        <input type="checkbox" id="t2-enabled">
+      </div>
+      <div class="trig-body" id="t2-body">
+        <fieldset>
+          <legend>Channel Source</legend>
+          <label>Channel Type
+            <select id="t2-chtype" onchange="onTrigChTypeChange(2)">
+              <option value="0">Input Channel (1–32)</option>
+              <option value="4">Aux In (1–8)</option>
+              <option value="5">FX Return (1–8)</option>
+              <option value="1">Mix Bus (1–16)</option>
+              <option value="2">Matrix (1–6)</option>
+              <option value="3" selected>DCA (1–8)</option>
+              <option value="6">Main L/R</option>
+              <option value="7">Main Mono/Center</option>
+            </select>
+          </label>
+          <label id="t2-chnum-lbl">Channel Number
+            <input type="number" id="t2-chnum" min="1" max="8" value="1">
+          </label>
+          <label>Signal Source
+            <select id="t2-sigsrc" onchange="onTrigSigSrcChange(2)">
+              <option value="0">Fader Level</option>
+              <option value="1">Meter Level (real-time)</option>
+              <option value="2">Mute State</option>
+            </select>
+          </label>
+          <label>Custom OSC Path <small>(overrides above when set)</small>
+            <input type="text" id="t2-oscpath" placeholder="/ch/01/mix/fader">
+          </label>
+          <div class="info-row">Resolved path: <code id="t2-pathpreview">—</code></div>
+        </fieldset>
+        <fieldset>
+          <legend>Threshold &amp; Inversion</legend>
+          <label>Threshold (0.0 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t2-thresh" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncNumById(this,'t2-thresh-n')">
+              <input type="number" id="t2-thresh-n" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncRangeById(this,'t2-thresh')">
+            </div>
+          </label>
+          <label>Hysteresis (0.0 – 0.5)
+            <div class="range-row">
+              <input type="range" id="t2-hyst" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncNumById(this,'t2-hyst-n')">
+              <input type="number" id="t2-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncRangeById(this,'t2-hyst')">
+            </div>
+          </label>
+          <label>Smoothing / EMA alpha (0.01 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t2-smooth" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncNumById(this,'t2-smooth-n')">
+              <input type="number" id="t2-smooth-n" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncRangeById(this,'t2-smooth')">
+            </div>
+          </label>
+          <label class="toggle-row">
+            <span>Invert — fire when signal is BELOW threshold</span>
+            <input type="checkbox" id="t2-invert">
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Timing</legend>
+          <label>Hold Time (ms)<input type="number" id="t2-hold" min="0" max="30000" value="500"></label>
+          <label>Release Delay (ms)<input type="number" id="t2-rel" min="0" max="30000" value="1000"></label>
+          <label>Debounce (ms)<input type="number" id="t2-dbnc" min="0" max="5000" value="50"></label>
+        </fieldset>
+        <fieldset>
+          <legend>Actions</legend>
+          <div class="action-section">
+            <div class="action-section-hdr"><span class="act-section-title">On Activate</span><span class="act-badge act-on">ON</span></div>
+            <div id="actions-t2On" class="action-list"></div>
+            <div id="add-row-t2On" class="add-row"></div>
+          </div>
+          <div class="action-section">
+            <div class="action-section-hdr"><span class="act-section-title">On Release</span><span class="act-badge act-off">OFF</span></div>
+            <div id="actions-t2Off" class="action-list"></div>
+            <div id="add-row-t2Off" class="add-row"></div>
+          </div>
+        </fieldset>
+      </div>
+    </div><!-- /trig-sub-2 -->
+
+    <!-- Trigger 3 -->
+    <div id="trig-sub-3" class="trig-sub-content">
+      <div class="trig-enable-row">
+        <span>Enable Trigger 4</span>
+        <input type="checkbox" id="t3-enabled">
+      </div>
+      <div class="trig-body" id="t3-body">
+        <fieldset>
+          <legend>Channel Source</legend>
+          <label>Channel Type
+            <select id="t3-chtype" onchange="onTrigChTypeChange(3)">
+              <option value="0">Input Channel (1–32)</option>
+              <option value="4">Aux In (1–8)</option>
+              <option value="5">FX Return (1–8)</option>
+              <option value="1">Mix Bus (1–16)</option>
+              <option value="2">Matrix (1–6)</option>
+              <option value="3" selected>DCA (1–8)</option>
+              <option value="6">Main L/R</option>
+              <option value="7">Main Mono/Center</option>
+            </select>
+          </label>
+          <label id="t3-chnum-lbl">Channel Number
+            <input type="number" id="t3-chnum" min="1" max="8" value="1">
+          </label>
+          <label>Signal Source
+            <select id="t3-sigsrc" onchange="onTrigSigSrcChange(3)">
+              <option value="0">Fader Level</option>
+              <option value="1">Meter Level (real-time)</option>
+              <option value="2">Mute State</option>
+            </select>
+          </label>
+          <label>Custom OSC Path <small>(overrides above when set)</small>
+            <input type="text" id="t3-oscpath" placeholder="/ch/01/mix/fader">
+          </label>
+          <div class="info-row">Resolved path: <code id="t3-pathpreview">—</code></div>
+        </fieldset>
+        <fieldset>
+          <legend>Threshold &amp; Inversion</legend>
+          <label>Threshold (0.0 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t3-thresh" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncNumById(this,'t3-thresh-n')">
+              <input type="number" id="t3-thresh-n" min="0" max="1" step="0.01" value="0.5"
+                     oninput="syncRangeById(this,'t3-thresh')">
+            </div>
+          </label>
+          <label>Hysteresis (0.0 – 0.5)
+            <div class="range-row">
+              <input type="range" id="t3-hyst" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncNumById(this,'t3-hyst-n')">
+              <input type="number" id="t3-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+                     oninput="syncRangeById(this,'t3-hyst')">
+            </div>
+          </label>
+          <label>Smoothing / EMA alpha (0.01 – 1.0)
+            <div class="range-row">
+              <input type="range" id="t3-smooth" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncNumById(this,'t3-smooth-n')">
+              <input type="number" id="t3-smooth-n" min="0.01" max="1" step="0.01" value="0.15"
+                     oninput="syncRangeById(this,'t3-smooth')">
+            </div>
+          </label>
+          <label class="toggle-row">
+            <span>Invert — fire when signal is BELOW threshold</span>
+            <input type="checkbox" id="t3-invert">
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend>Timing</legend>
+          <label>Hold Time (ms)<input type="number" id="t3-hold" min="0" max="30000" value="500"></label>
+          <label>Release Delay (ms)<input type="number" id="t3-rel" min="0" max="30000" value="1000"></label>
+          <label>Debounce (ms)<input type="number" id="t3-dbnc" min="0" max="5000" value="50"></label>
+        </fieldset>
+        <fieldset>
+          <legend>Actions</legend>
+          <div class="action-section">
+            <div class="action-section-hdr"><span class="act-section-title">On Activate</span><span class="act-badge act-on">ON</span></div>
+            <div id="actions-t3On" class="action-list"></div>
+            <div id="add-row-t3On" class="add-row"></div>
+          </div>
+          <div class="action-section">
+            <div class="action-section-hdr"><span class="act-section-title">On Release</span><span class="act-badge act-off">OFF</span></div>
+            <div id="actions-t3Off" class="action-list"></div>
+            <div id="add-row-t3Off" class="add-row"></div>
+          </div>
+        </fieldset>
+      </div>
+    </div><!-- /trig-sub-3 -->
+
+    <div class="form-actions" style="margin-top:1rem">
+      <button type="submit" class="btn-primary">Save &amp; Apply All Triggers</button>
     </div>
   </form>
 </section>
@@ -366,7 +651,6 @@
   <h2>Talkback Engine</h2>
   <form id="form-talkback">
 
-    <!-- Live indicators -->
     <fieldset>
       <legend>Live State</legend>
       <div class="tb-status-row">
@@ -381,7 +665,6 @@
       </div>
     </fieldset>
 
-    <!-- Global settings -->
     <fieldset>
       <legend>General</legend>
       <label class="toggle-row">
@@ -399,15 +682,12 @@
       </div>
     </fieldset>
 
-    <!-- Per-button action editor (shown when enabled) -->
     <div id="tb-advanced-section">
-      <!-- Sub-tab bar: Talk A / Talk B -->
       <div class="tb-subtabs">
         <button type="button" class="tb-subtab active" data-tbsub="a">Talk A</button>
         <button type="button" class="tb-subtab" data-tbsub="b">Talk B</button>
       </div>
 
-      <!-- Talk A actions -->
       <div id="tb-sub-a" class="tb-sub-content active">
         <div class="action-section">
           <div class="action-section-hdr">
@@ -427,7 +707,6 @@
         </div>
       </div>
 
-      <!-- Talk B actions -->
       <div id="tb-sub-b" class="tb-sub-content">
         <div class="action-section">
           <div class="action-section-hdr">
@@ -446,7 +725,7 @@
           <div id="add-row-bOff" class="add-row"></div>
         </div>
       </div>
-    </div><!-- /tb-advanced-section -->
+    </div>
 
     <div class="form-actions" style="margin-top:1rem">
       <button type="submit" class="btn-primary">Save &amp; Apply</button>
@@ -492,17 +771,17 @@
         <tr>
           <td><code>/calllight/trigger</code></td>
           <td><code>int 0|1</code></td>
-          <td>Set trigger on (1) or off (0). Runs Trigger Actions from the Trigger tab.</td>
+          <td>Activate (1) or release (0) Trigger 1. Runs Trigger 1 actions.</td>
         </tr>
         <tr>
           <td><code>/calllight/trigger/on</code></td>
           <td>none</td>
-          <td>Activate trigger (no argument needed — press button style).</td>
+          <td>Activate Trigger 1 (momentary button style).</td>
         </tr>
         <tr>
           <td><code>/calllight/trigger/off</code></td>
           <td>none</td>
-          <td>Release trigger.</td>
+          <td>Release Trigger 1.</td>
         </tr>
         <tr>
           <td><code>/calllight/talkback/a</code></td>
@@ -517,7 +796,7 @@
       </tbody>
     </table>
     <p class="fieldset-hint" style="margin-top:0.6rem">
-      Trigger actions are configured in the <strong>Trigger</strong> tab.
+      Trigger 1 actions are configured in the <strong>Triggers</strong> tab.
       Talkback actions are configured in the <strong>Talkback</strong> tab.
     </p>
   </div>
@@ -550,7 +829,7 @@
     </div>
   </div>
 
-  <h3 style="margin-top:2rem">OSC Monitor</h3>
+  <h3 style="margin-top:2rem">OSC Monitor (Trigger 1)</h3>
   <div class="monitor-box">
     <div class="monitor-header">
       <div>
@@ -580,14 +859,18 @@
     <tr><th>Web UI (AP)</th>      <td><a id="tool-ap-link" href="#">http://192.168.4.1</a></td></tr>
     <tr><th>mDNS hostname</th>    <td><a href="http://talkback-calllight.local">http://talkback-calllight.local</a></td></tr>
     <tr><th>STA IP Address</th>   <td id="tool-sta-ip">—</td></tr>
-    <tr><th>Web UI (STA)</th>    <td><a id="tool-sta-link" href="#" style="display:none">—</a><span id="tool-sta-nolink" style="color:var(--text-dim)">Not connected</span></td></tr>
+    <tr><th>Web UI (STA)</th>
+      <td>
+        <a id="tool-sta-link" href="#" style="display:none">—</a>
+        <span id="tool-sta-nolink" style="color:var(--text-dim)">Not connected</span>
+      </td>
+    </tr>
   </table>
 </section>
 
 </main>
 
 <div class="toast" id="toast"></div>
-
 <script src="app.js"></script>
 </body>
 </html>

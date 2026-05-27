@@ -693,6 +693,97 @@ button:hover   { opacity: 0.85; }
 }
 #ext-osc-fields.hidden { max-height: 0; }
 
+/* ── Trigger sub-tabs (Trigger 1 / 2 / 3 / 4) ───────────────────────────── */
+.trig-subtabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+}
+.trig-subtab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.trig-subtab:hover  { color: var(--text); }
+.trig-subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.trig-subtab.enabled-dot::after {
+  content: '●';
+  font-size: 0.45rem;
+  color: var(--success);
+  vertical-align: super;
+  margin-left: 0.25rem;
+}
+.trig-subtab:active { transform: none; }
+
+.trig-sub-content        { display: none; }
+.trig-sub-content.active { display: block; }
+
+/* ── Trigger enable toggle row ───────────────────────────────────────────── */
+.trig-enable-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Trigger per-section collapsible ─────────────────────────────────────── */
+.trig-body {
+  overflow: hidden;
+  max-height: 4000px;
+  transition: max-height 0.35s;
+}
+.trig-body.hidden { max-height: 0; }
+
+/* ── Trigger invert row hint ─────────────────────────────────────────────── */
+.invert-hint {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  margin-top: -0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+/* ── Trigger status mini-cards ───────────────────────────────────────────── */
+.trig-status-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.trig-status-chip {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+.trig-status-chip.active {
+  background: #2a1400;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.trig-status-chip.disabled {
+  opacity: 0.35;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-direction: column; align-items: flex-start; }

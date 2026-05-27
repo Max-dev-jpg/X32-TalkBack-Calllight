@@ -17,9 +17,9 @@
 #define DEFAULT_MIXER_IP       "192.168.1.3"
 #define DEFAULT_OSC_TX_PORT    10023   // X32 receives on this port
 #define DEFAULT_OSC_RX_PORT    10024   // we listen on this port
-#define OSC_POLL_INTERVAL_MS   200     // how often we poll the mixer
+#define OSC_POLL_INTERVAL_MS   200     // unused: fader/mute queries run at XREMOTE_INTERVAL_MS cadence
 #define XREMOTE_INTERVAL_MS    8000    // /xremote renewal period (< 10 s)
-#define MIXER_TIMEOUT_MS       3000    // declare lost after this silence
+#define MIXER_TIMEOUT_MS       12000   // must be > XREMOTE_INTERVAL_MS to avoid false disconnects
 
 // ── GPIO defaults ─────────────────────────────────────────────────────────────
 #define DEFAULT_OUTPUT_PIN     2       // built-in LED on most DevKits

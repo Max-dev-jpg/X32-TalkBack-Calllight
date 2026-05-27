@@ -29,8 +29,7 @@ void MixerConnection::begin() {
 void MixerConnection::reconnect() {
     Serial.println("[Mixer] Reconnecting...");
     if (_udpOpen) { _udp.stop(); _udpOpen = false; }
-    _lastXRemoteMs  = 0;
-    _lastPollMs     = 0;
+    _lastXRemoteMs  = 0;   // force immediate xremote + queries on next loop()
     _lastResponseMs = 0;
     _connected      = false;
     begin();
@@ -41,13 +40,15 @@ void MixerConnection::reconnect() {
 void MixerConnection::rebuildPaths() {
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         const TriggerConfig& t = Config.triggers[n];
+        _meterChannelIds[n] = -1;
         if (!t.enabled) {
             _triggerPaths[n] = "";
             continue;
         }
         if (t.signalSource == SIG_METER) {
             // Responses arrive addressed to our alias (e.g. "/mt0")
-            _triggerPaths[n] = String("/mt") + n;
+            _triggerPaths[n]    = String("/mt") + n;
+            _meterChannelIds[n] = ConfigManager::instance().meterChannelId(t);
         } else {
             _triggerPaths[n] = ConfigManager::instance().buildOSCPathForTrigger(t);
         }
@@ -130,8 +131,11 @@ void MixerConnection::processIncoming() {
             // Mute state: /mix/on → 1 = active, 0 = muted
             level = (float)msg.intVal;
         } else if (msg.typeTag == 'b') {
-            // Blob from /batchsubscribe: floatVal holds the first LE float
-            level = msg.floatVal;
+            // Blob from /batchsubscribe — the X32 sends the full meter bank;
+            // read the float at the channel index we subscribed to.
+            uint32_t chIdx = (_meterChannelIds[n] >= 0) ? (uint32_t)_meterChannelIds[n] : 0;
+            level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
+                                                   msg.blobArgOffset, chIdx);
         }
 
         level = constrain(level, 0.0f, 1.0f);
@@ -155,17 +159,16 @@ void MixerConnection::loop() {
 
     if (Config.mixerIP[0] == '\0') return;
 
-    // Renew /xremote (covers fader/mute subscriptions) and meter subscriptions
+    // Every XREMOTE_INTERVAL_MS:
+    //   • Renew /xremote so the X32 keeps pushing parameter changes for 10 s
+    //   • Renew /batchsubscribe for any meter-mode triggers
+    //   • Send one-shot fader/mute queries to refresh current state
+    //     (between renewals the X32 pushes changes via /xremote subscription)
     if (now - _lastXRemoteMs >= XREMOTE_INTERVAL_MS) {
         sendXRemote();
         sendMeterSubscriptions();
+        sendFaderMuteQueries();   // initial sync; X32 pushes changes between renewals
         _lastXRemoteMs = now;
-    }
-
-    // Poll fader/mute paths
-    if (now - _lastPollMs >= OSC_POLL_INTERVAL_MS) {
-        sendFaderMuteQueries();
-        _lastPollMs = now;
     }
 
     if (_udpOpen) processIncoming();

@@ -420,13 +420,20 @@ void WebServerManager::broadcastOSCMonitor() {
 
     JsonArray arr = doc.createNestedArray("monitors");
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& tc = Config.triggers[n];
         JsonObject m = arr.createNestedObject();
-        m["n"]         = n;
-        m["address"]   = ConfigManager::instance().buildOSCPathForTrigger(Config.triggers[n]);
+        m["n"]      = n;
+        // For meter mode show the subscription alias (actual receive path).
+        // For fader/mute show the real OSC path on the mixer.
+        if (tc.signalSource == SIG_METER && tc.enabled) {
+            m["address"] = String("/mt") + n;
+        } else {
+            m["address"] = ConfigManager::instance().buildOSCPathForTrigger(tc);
+        }
         m["value"]     = MixerConnection::instance().getLevelForTrigger(n);
         m["smoothed"]  = TriggerManager::instance().getSmoothedLevel(n);
         m["triggered"] = TriggerManager::instance().isTriggered(n);
-        m["enabled"]   = Config.triggers[n].enabled;
+        m["enabled"]   = tc.enabled;
     }
 
     String out;

@@ -125,10 +125,11 @@ size_t OSCHandler::buildBatchSubscribe(const String& alias,
 
 OSCMessage OSCHandler::parse(const uint8_t* buf, size_t len) {
     OSCMessage msg;
-    msg.valid    = false;
-    msg.typeTag  = 0;
-    msg.floatVal = 0.0f;
-    msg.intVal   = 0;
+    msg.valid       = false;
+    msg.typeTag     = 0;
+    msg.floatVal    = 0.0f;
+    msg.intVal      = 0;
+    msg.blobArgOffset = 0;
 
     if (len < 8) return msg;
 
@@ -164,22 +165,35 @@ OSCMessage OSCHandler::parse(const uint8_t* buf, size_t len) {
         case 'F': msg.intVal = 0; break;
 
         case 'b':
-            // X32/M32 blob format (per OSC Command Reference PDF):
-            //   [offset + 0..3]: blob byte count (big-endian int32, per OSC spec)
-            //   [offset + 4..7]: float count     (LITTLE-endian int32, X32-specific)
-            //   [offset + 8..]: LE 32-bit floats
-            if (offset + 8 <= len) {
-                // blob byte count (BE per OSC spec) — used for bounds checking
-                uint32_t byteCount  = (uint32_t)readBEInt(buf + offset);
-                // float count is LE (X32/M32 specific — not standard OSC blob)
-                uint32_t floatCount = (uint32_t)readLEInt(buf + offset + 4);
-                // Sanity: floatCount must fit inside byteCount
-                if (floatCount > 0 && byteCount >= 4 + floatCount * 4) {
-                    size_t floatStart = offset + 8;
-                    if (floatStart + 4 <= len)
-                        msg.floatVal = readLEFloat(buf + floatStart);
+            // X32/M32 meter blob — two possible formats depending on firmware:
+            //   Format A (with LE count header):
+            //     [offset + 0..3]: blob byte count (BE int32)
+            //     [offset + 4..7]: float count     (LE int32, X32-specific header)
+            //     [offset + 8..]: LE float32 values
+            //   Format B (raw, no count header):
+            //     [offset + 0..3]: blob byte count (BE int32)
+            //     [offset + 4..]: LE float32 values directly
+            // extractMeterFloat() handles both; floatVal and intVal are set for
+            // quick access to the first float (channel 0) and float count.
+            msg.blobArgOffset = offset;  // save raw position for extractMeterFloat()
+            if (offset + 4 <= len) {
+                uint32_t byteCount = (uint32_t)readBEInt(buf + offset);
+                if (byteCount >= 8 && offset + 8 <= len) {
+                    // Try Format A: check if the 4 bytes after byte-count look like a LE count
+                    uint32_t maybeCount = (uint32_t)readLEInt(buf + offset + 4);
+                    if (maybeCount > 0 && byteCount == 4 + maybeCount * 4
+                            && offset + 8 + maybeCount * 4 <= len) {
+                        // Format A confirmed
+                        msg.floatVal = readLEFloat(buf + offset + 8);
+                        msg.intVal   = (int32_t)maybeCount;
+                        break;
+                    }
                 }
-                msg.intVal = (int32_t)floatCount; // caller can iterate more floats
+                // Format B (or Format A failed sanity): raw LE floats
+                if (byteCount >= 4 && offset + 4 + byteCount <= len) {
+                    msg.floatVal = readLEFloat(buf + offset + 4);
+                    msg.intVal   = (int32_t)(byteCount / 4);
+                }
             }
             break;
 
@@ -188,4 +202,35 @@ OSCMessage OSCHandler::parse(const uint8_t* buf, size_t len) {
     }
 
     return msg;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// extractMeterFloat — read a specific channel from an X32 meter blob
+// ─────────────────────────────────────────────────────────────────────────────
+
+float OSCHandler::extractMeterFloat(const uint8_t* buf, size_t bufLen,
+                                     size_t blobArgOffset, uint32_t floatIndex) {
+    if (blobArgOffset + 4 > bufLen) return 0.0f;
+
+    uint32_t byteCount = (uint32_t)readBEInt(buf + blobArgOffset);
+
+    // Try Format A: [BE byte-count][LE float-count][LE floats...]
+    if (byteCount >= 8 && blobArgOffset + 8 <= bufLen) {
+        uint32_t floatCount = (uint32_t)readLEInt(buf + blobArgOffset + 4);
+        if (floatCount > 0 && byteCount == 4 + floatCount * 4) {
+            uint32_t idx = (floatIndex < floatCount) ? floatIndex : 0;
+            size_t pos = blobArgOffset + 8 + idx * 4;
+            if (pos + 4 <= bufLen) return readLEFloat(buf + pos);
+        }
+    }
+
+    // Format B: [BE byte-count][LE floats directly]
+    if (byteCount >= 4 && blobArgOffset + 4 + byteCount <= bufLen) {
+        uint32_t floatCount = byteCount / 4;
+        uint32_t idx = (floatIndex < floatCount) ? floatIndex : 0;
+        size_t pos = blobArgOffset + 4 + idx * 4;
+        if (pos + 4 <= bufLen) return readLEFloat(buf + pos);
+    }
+
+    return 0.0f;
 }

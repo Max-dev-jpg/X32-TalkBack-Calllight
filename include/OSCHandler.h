@@ -15,11 +15,12 @@
 // ── Parsed OSC message ────────────────────────────────────────────────────────
 struct OSCMessage {
     String  address;
-    char    typeTag;      // 'f'=float, 'i'=int32, 's'=string, 'b'=blob, 0=none
-    float   floatVal;     // For 'b': first LE float from blob
-    int32_t intVal;       // For 'b': number of floats in blob
+    char    typeTag;        // 'f'=float, 'i'=int32, 's'=string, 'b'=blob, 0=none
+    float   floatVal;       // For 'b': float[0] from blob
+    int32_t intVal;         // For 'b': number of floats in blob (count header or byteCount/4)
     String  stringVal;
     bool    valid;
+    size_t  blobArgOffset;  // For 'b': byte offset of blob arg in raw packet (incl. 4-byte BE size field)
 };
 
 class OSCHandler {
@@ -50,6 +51,13 @@ public:
 
     // Parse a raw UDP buffer into an OSCMessage struct
     static OSCMessage parse(const uint8_t* buf, size_t len);
+
+    // Read a specific float from an X32 meter blob in the raw UDP buffer.
+    // Handles both: [LE-count-header][LE floats] and raw [LE floats] (no header).
+    // blobArgOffset = OSCMessage::blobArgOffset (points to the 4-byte BE size field).
+    // floatIndex    = 0-based channel index within the blob.
+    static float extractMeterFloat(const uint8_t* buf, size_t bufLen,
+                                    size_t blobArgOffset, uint32_t floatIndex);
 
 private:
     static size_t  writeOSCString(uint8_t* buf, size_t offset,

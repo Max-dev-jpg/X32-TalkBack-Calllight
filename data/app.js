@@ -562,15 +562,30 @@ function updateStatus(d) {
   const mixEl = document.getElementById('st-mixer-con');
   if (mixEl) mixEl.style.color = mixOk ? 'var(--success)' : 'var(--danger)';
 
-  // Trigger 0 level (backward compat — main status cards)
-  const lv = parseFloat(d.level    ?? 0).toFixed(3);
-  const sv = parseFloat(d.smoothed ?? 0).toFixed(3);
-  setText('st-level',  lv);
-  setText('st-smooth', sv);
-  const lvBar = document.getElementById('st-level-bar');
-  const svBar = document.getElementById('st-smooth-bar');
-  if (lvBar) lvBar.style.width = (parseFloat(lv) * 100) + '%';
-  if (svBar) svBar.style.width = (parseFloat(sv) * 100) + '%';
+  // Per-trigger status cards (Trigger 1–4)
+  if (Array.isArray(d.triggers)) {
+    d.triggers.forEach((t, n) => {
+      const lv = parseFloat(t.level    ?? 0).toFixed(3);
+      const sv = parseFloat(t.smoothed ?? 0).toFixed(3);
+      setText('st-trig-' + n + '-level',  lv);
+      setText('st-trig-' + n + '-smooth', sv);
+      const bar = document.getElementById('st-trig-' + n + '-bar');
+      if (bar) bar.style.width = (parseFloat(lv) * 100) + '%';
+      const statusEl = document.getElementById('st-trig-' + n + '-status');
+      if (statusEl) {
+        if (!t.enabled) {
+          statusEl.textContent = 'Disabled';
+          statusEl.className   = 'card-value trig-status disabled';
+        } else if (t.triggered) {
+          statusEl.textContent = 'ACTIVE';
+          statusEl.className   = 'card-value trig-status active';
+        } else {
+          statusEl.textContent = 'Idle';
+          statusEl.className   = 'card-value trig-status';
+        }
+      }
+    });
+  }
 
   // Per-trigger status chips
   const chipRow = document.getElementById('trig-status-row');

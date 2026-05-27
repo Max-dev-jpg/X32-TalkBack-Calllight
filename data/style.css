@@ -891,6 +891,31 @@ label.trig-rgb-lbl {
 }
 label.trig-rgb-lbl input[type="number"] { width: 62px; }
 
+/* ── Trigger status cards ────────────────────────────────────────────────── */
+.mono { font-family: var(--font-mono); }
+
+.card-sub {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+  font-size: 0.74rem;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+.card-sub-sep {
+  color: var(--border);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.trig-status {
+  transition: color 0.25s;
+}
+.trig-status.active   { color: var(--warn);    }
+.trig-status.disabled { color: var(--text-dim); opacity: 0.45; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .header-inner { flex-direction: column; align-items: flex-start; }

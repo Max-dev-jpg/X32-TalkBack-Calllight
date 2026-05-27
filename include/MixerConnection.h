@@ -3,7 +3,8 @@
 // MixerConnection.h  –  OSC/UDP link to X32 / M32 mixer
 //
 // Handles up to MAX_TRIGGERS independent signal paths simultaneously:
-//   - SIG_FADER / SIG_MUTE : polled on every OSC_POLL_INTERVAL_MS cycle
+//   - SIG_FADER / SIG_MUTE : one-shot query on /xremote renewal (every 8 s),
+//                             then relies on /xremote push for real-time changes
 //   - SIG_METER             : subscribed via /batchsubscribe, renewed every 8 s
 // =============================================================================
 
@@ -50,8 +51,9 @@ private:
     float    _triggerLevels[MAX_TRIGGERS] = {};
     // Resolved path or alias for each trigger (used for response matching)
     String   _triggerPaths[MAX_TRIGGERS];
+    // 0-based channel index in the /meters/6 blob for SIG_METER triggers; -1 otherwise
+    int32_t  _meterChannelIds[MAX_TRIGGERS] = {-1,-1,-1,-1};
 
-    uint32_t _lastPollMs       = 0;
     uint32_t _lastXRemoteMs    = 0;
     uint32_t _lastResponseMs   = 0;
     uint32_t _lastReconnectMs  = 0;

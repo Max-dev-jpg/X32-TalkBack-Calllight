@@ -94,8 +94,8 @@ void MixerConnection::sendMeterSubscriptions() {
         if (chId < 0) continue; // DCA not available on /meters/6
 
         String alias = String("/mt") + n;
-        // tf=10 → 10 frames × 5 ms = 50 ms per update; subscription lives 10 s
-        size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 10,
+        // tf=2 → 100 Updates in the 10 s timeframe
+        size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 2,
                                                      _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);

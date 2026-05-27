@@ -68,7 +68,7 @@
 // ── Web server ────────────────────────────────────────────────────────────────
 #define WEB_SERVER_PORT       80
 #define WEBSOCKET_PATH        "/ws"
-#define WS_BROADCAST_INTERVAL 1000    // ms between status broadcasts
+#define WS_BROADCAST_INTERVAL 300    // ms between status broadcasts
 
 // ── mDNS / OTA ───────────────────────────────────────────────────────────────
 #define MDNS_HOSTNAME     "talkback-calllight"

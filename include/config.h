@@ -137,8 +137,14 @@
 
 // ── External OSC Control (Companion / OSC controllers) ───────────────────────
 #define DEFAULT_EXT_OSC_PORT   8000
+// Legacy paths — Trigger 1 only, kept for backward compatibility
 #define XOSC_PATH_TRIGGER      "/calllight/trigger"
 #define XOSC_PATH_TRIGGER_ON   "/calllight/trigger/on"
 #define XOSC_PATH_TRIGGER_OFF  "/calllight/trigger/off"
+// Talkback paths
 #define XOSC_PATH_TB_A         "/calllight/talkback/a"
 #define XOSC_PATH_TB_B         "/calllight/talkback/b"
+// Per-trigger base path — append /N, /N/on, /N/off, /N/pulse  (N = 1-4)
+#define XOSC_PATH_TRIG_BASE    "/calllight/trigger/"
+// Default pulse duration in ms (used when no argument is supplied)
+#define XOSC_PULSE_DEFAULT_MS  300

@@ -405,7 +405,66 @@ button:hover   { opacity: 0.85; }
 .toast.success { border-color: var(--success); color: var(--success); }
 .toast.error   { border-color: var(--danger);  color: var(--danger);  }
 
-/* ── OSC Monitor ─────────────────────────────────────────────────────────── */
+/* ── OSC Monitor grid ────────────────────────────────────────────────────── */
+.monitor-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+@media (max-width: 640px) { .monitor-grid { grid-template-columns: 1fr; } }
+
+.monitor-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.8rem 1rem;
+}
+
+.monitor-panel-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+}
+.monitor-panel-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.monitor-panel .monitor-path {
+  font-size: 0.74rem;
+  text-align: right;
+}
+
+.monitor-val-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.monitor-panel .monitor-value { font-size: 1.6rem; }
+
+.btn-xs {
+  padding: 0.15rem 0.6rem;
+  font-size: 0.74rem;
+}
+
+/* OSC paths table section header row */
+.osc-table-section td {
+  background: var(--bg3);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.3rem 0.6rem;
+}
+
+/* ── OSC Monitor (legacy single-box) ─────────────────────────────────────── */
 .monitor-box {
   background: var(--bg2);
   border: 1px solid var(--border);

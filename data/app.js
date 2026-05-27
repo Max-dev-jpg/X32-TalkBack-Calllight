@@ -673,8 +673,12 @@ async function pollStatus() {
 
 // ── OSC Monitor ───────────────────────────────────────────────────────────────
 let monitorRunning = false;
-let monitorMin = null, monitorMax = null, monitorSum = 0, monitorCount = 0;
-const MON_LOG_MAX = 60;
+const MON_LOG_MAX = 40;
+
+// Per-trigger stats state
+const MON_STATE = Array.from({ length: NUM_TRIGGERS }, () =>
+  ({ min: null, max: null, sum: 0, count: 0 })
+);
 
 async function toggleMonitor() {
   const res  = await fetch('/api/monitor', { method: 'POST' });
@@ -682,49 +686,66 @@ async function toggleMonitor() {
   const json = await res.json();
   monitorRunning = json.active;
   const btn = document.getElementById('mon-toggle');
-  const log = document.getElementById('mon-log');
   if (monitorRunning) {
     btn.textContent = '⏹ Stop Monitor'; btn.className = 'btn-warning';
-    log.classList.add('active');
-    fetch('/api/config').then(r=>r.json()).then(c => {
-      if (c.oscPath) document.getElementById('mon-path').textContent = c.oscPath;
-    }).catch(()=>{});
+    for (let n = 0; n < NUM_TRIGGERS; n++) {
+      const log = document.getElementById('mon-log-' + n);
+      if (log) log.classList.add('active');
+    }
   } else {
     btn.textContent = '▶ Start Monitor'; btn.className = 'btn-primary';
   }
 }
 
-function clearMonitor() {
-  document.getElementById('mon-log').innerHTML = '';
-  monitorMin = null; monitorMax = null; monitorSum = 0; monitorCount = 0;
-  document.getElementById('mon-min').textContent = '—';
-  document.getElementById('mon-max').textContent = '—';
-  document.getElementById('mon-avg').textContent = '—';
+function clearMonitor(n) {
+  const log = document.getElementById('mon-log-' + n);
+  if (log) log.innerHTML = '';
+  const st = MON_STATE[n];
+  st.min = null; st.max = null; st.sum = 0; st.count = 0;
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText('mon-min-' + n, '—'); setText('mon-max-' + n, '—'); setText('mon-avg-' + n, '—');
+}
+function clearAllMonitors() {
+  for (let n = 0; n < NUM_TRIGGERS; n++) clearMonitor(n);
 }
 
 function updateOSCMonitor(d) {
-  const val = parseFloat(d.value ?? 0);
-  document.getElementById('mon-value').textContent = val.toFixed(4);
-  document.getElementById('mon-path').textContent  = d.address || '—';
-  document.getElementById('mon-bar').style.width   = (val * 100) + '%';
-  if (monitorMin === null || val < monitorMin) monitorMin = val;
-  if (monitorMax === null || val > monitorMax) monitorMax = val;
-  monitorSum += val; monitorCount++;
-  document.getElementById('mon-min').textContent = monitorMin.toFixed(4);
-  document.getElementById('mon-max').textContent = monitorMax.toFixed(4);
-  document.getElementById('mon-avg').textContent = (monitorSum / monitorCount).toFixed(4);
+  // Support both new {monitors:[...]} format and legacy single-trigger format
+  const monitors = Array.isArray(d.monitors)
+    ? d.monitors
+    : [{ n: 0, address: d.address, value: d.value, smoothed: d.smoothed, triggered: d.triggered }];
 
-  const log = document.getElementById('mon-log');
-  if (!log.classList.contains('active')) return;
-  const ts  = new Date().toLocaleTimeString('de-DE', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  const pct = Math.round(val * 100);
-  const row = document.createElement('div');
-  row.className = 'log-row';
-  row.innerHTML = `<span class="log-ts">${ts}</span><span class="log-val">${val.toFixed(4)}</span>` +
-    `<span class="log-bar"><span class="log-fill" style="width:${pct}%"></span></span>` +
-    (d.triggered ? '<span class="log-trig">▲</span>' : '');
-  log.insertBefore(row, log.firstChild);
-  while (log.children.length > MON_LOG_MAX) log.removeChild(log.lastChild);
+  monitors.forEach(m => {
+    const n = m.n;
+    if (n >= NUM_TRIGGERS) return;
+    const val = parseFloat(m.value ?? 0);
+    const st  = MON_STATE[n];
+
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('mon-value-' + n, val.toFixed(4));
+    setText('mon-path-'  + n, m.address || '—');
+    const bar = document.getElementById('mon-bar-' + n);
+    if (bar) bar.style.width = (val * 100) + '%';
+
+    if (st.min === null || val < st.min) st.min = val;
+    if (st.max === null || val > st.max) st.max = val;
+    st.sum += val; st.count++;
+    setText('mon-min-' + n, st.min.toFixed(4));
+    setText('mon-max-' + n, st.max.toFixed(4));
+    setText('mon-avg-' + n, (st.sum / st.count).toFixed(4));
+
+    const log = document.getElementById('mon-log-' + n);
+    if (!log || !log.classList.contains('active')) return;
+    const ts  = new Date().toLocaleTimeString('de-DE', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const pct = Math.round(val * 100);
+    const row = document.createElement('div');
+    row.className = 'log-row';
+    row.innerHTML = `<span class="log-ts">${ts}</span><span class="log-val">${val.toFixed(4)}</span>` +
+      `<span class="log-bar"><span class="log-fill" style="width:${pct}%"></span></span>` +
+      (m.triggered ? '<span class="log-trig">▲</span>' : '');
+    log.insertBefore(row, log.firstChild);
+    while (log.children.length > MON_LOG_MAX) log.removeChild(log.lastChild);
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

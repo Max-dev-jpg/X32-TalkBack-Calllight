@@ -391,13 +391,21 @@ void WebServerManager::broadcastStatus() {
 void WebServerManager::broadcastOSCMonitor() {
     if (_ws.count() == 0) return;
 
-    DynamicJsonDocument doc(256);
-    doc["type"]      = "osc";
-    doc["address"]   = ConfigManager::instance().buildOSCPathForTrigger(Config.triggers[0]);
-    doc["value"]     = MixerConnection::instance().getLevelForTrigger(0);
-    doc["smoothed"]  = TriggerManager::instance().getSmoothedLevel(0);
-    doc["triggered"] = TriggerManager::instance().isTriggered(0);
-    doc["ts"]        = millis();
+    // Send all 4 trigger levels in one message
+    DynamicJsonDocument doc(512);
+    doc["type"] = "osc";
+    doc["ts"]   = millis();
+
+    JsonArray arr = doc.createNestedArray("monitors");
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        JsonObject m = arr.createNestedObject();
+        m["n"]         = n;
+        m["address"]   = ConfigManager::instance().buildOSCPathForTrigger(Config.triggers[n]);
+        m["value"]     = MixerConnection::instance().getLevelForTrigger(n);
+        m["smoothed"]  = TriggerManager::instance().getSmoothedLevel(n);
+        m["triggered"] = TriggerManager::instance().isTriggered(n);
+        m["enabled"]   = Config.triggers[n].enabled;
+    }
 
     String out;
     serializeJson(doc, out);

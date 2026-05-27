@@ -828,21 +828,44 @@
         <tr><th class="path-col">Path</th><th>Argument</th><th>Description</th></tr>
       </thead>
       <tbody>
+        <tr class="osc-table-section"><td colspan="3">Per-Trigger control (N = 1 – 4)</td></tr>
+        <tr>
+          <td><code>/calllight/trigger/N</code></td>
+          <td><code>int 0|1</code></td>
+          <td>Activate (1) or release (0) Trigger N. Runs that trigger's actions.</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/trigger/N/on</code></td>
+          <td>none</td>
+          <td>Activate Trigger N.</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/trigger/N/off</code></td>
+          <td>none</td>
+          <td>Release Trigger N.</td>
+        </tr>
+        <tr>
+          <td><code>/calllight/trigger/N/pulse</code></td>
+          <td><code>int ms</code> (opt.)</td>
+          <td>Momentary: activate Trigger N then auto-release after <em>ms</em> milliseconds (default 300 ms). Re-sending extends the timer.</td>
+        </tr>
+        <tr class="osc-table-section"><td colspan="3">Legacy paths (Trigger 1 only)</td></tr>
         <tr>
           <td><code>/calllight/trigger</code></td>
           <td><code>int 0|1</code></td>
-          <td>Activate (1) or release (0) Trigger 1. Runs Trigger 1 actions.</td>
+          <td>Backward-compatible set for Trigger 1.</td>
         </tr>
         <tr>
           <td><code>/calllight/trigger/on</code></td>
           <td>none</td>
-          <td>Activate Trigger 1 (momentary button style).</td>
+          <td>Backward-compatible activate Trigger 1.</td>
         </tr>
         <tr>
           <td><code>/calllight/trigger/off</code></td>
           <td>none</td>
-          <td>Release Trigger 1.</td>
+          <td>Backward-compatible release Trigger 1.</td>
         </tr>
+        <tr class="osc-table-section"><td colspan="3">Talkback</td></tr>
         <tr>
           <td><code>/calllight/talkback/a</code></td>
           <td><code>int 0|1</code></td>
@@ -856,7 +879,7 @@
       </tbody>
     </table>
     <p class="fieldset-hint" style="margin-top:0.6rem">
-      Trigger 1 actions are configured in the <strong>Triggers</strong> tab.
+      Trigger actions are configured per trigger in the <strong>Triggers</strong> tab.
       Talkback actions are configured in the <strong>Talkback</strong> tab.
     </p>
   </div>
@@ -889,27 +912,93 @@
     </div>
   </div>
 
-  <h3 style="margin-top:2rem">OSC Monitor (Trigger 1)</h3>
-  <div class="monitor-box">
-    <div class="monitor-header">
-      <div>
-        <div class="monitor-path" id="mon-path">—</div>
-        <div class="monitor-value mono" id="mon-value">0.000</div>
+  <h3 style="margin-top:2rem">OSC Monitor</h3>
+  <div class="monitor-controls" style="margin-bottom:1rem">
+    <button id="mon-toggle" class="btn-primary" onclick="toggleMonitor()">&#9654; Start Monitor</button>
+    <button class="btn-secondary" onclick="clearAllMonitors()">Clear All Logs</button>
+  </div>
+  <div class="monitor-grid">
+
+    <div class="monitor-panel">
+      <div class="monitor-panel-hdr">
+        <span class="monitor-panel-title">Trigger 1</span>
+        <span class="monitor-path" id="mon-path-0">—</span>
       </div>
-      <div class="monitor-stats">
-        <span>Min <b id="mon-min">—</b></span>
-        <span>Max <b id="mon-max">—</b></span>
-        <span>Avg <b id="mon-avg">—</b></span>
+      <div class="monitor-val-row">
+        <div class="monitor-value mono" id="mon-value-0">0.000</div>
+        <div class="monitor-stats">
+          <span>Min <b id="mon-min-0">—</b></span>
+          <span>Max <b id="mon-max-0">—</b></span>
+          <span>Avg <b id="mon-avg-0">—</b></span>
+        </div>
       </div>
+      <div class="level-bar-wrap" style="height:6px;margin:0.4rem 0 0.5rem">
+        <div class="level-bar" id="mon-bar-0"></div>
+      </div>
+      <div class="monitor-log" id="mon-log-0"></div>
+      <button class="btn-secondary btn-xs" onclick="clearMonitor(0)" style="margin-top:0.4rem">Clear</button>
     </div>
-    <div class="level-bar-wrap" style="height:8px;margin:0.6rem 0">
-      <div class="level-bar" id="mon-bar"></div>
+
+    <div class="monitor-panel">
+      <div class="monitor-panel-hdr">
+        <span class="monitor-panel-title">Trigger 2</span>
+        <span class="monitor-path" id="mon-path-1">—</span>
+      </div>
+      <div class="monitor-val-row">
+        <div class="monitor-value mono" id="mon-value-1">0.000</div>
+        <div class="monitor-stats">
+          <span>Min <b id="mon-min-1">—</b></span>
+          <span>Max <b id="mon-max-1">—</b></span>
+          <span>Avg <b id="mon-avg-1">—</b></span>
+        </div>
+      </div>
+      <div class="level-bar-wrap" style="height:6px;margin:0.4rem 0 0.5rem">
+        <div class="level-bar" id="mon-bar-1"></div>
+      </div>
+      <div class="monitor-log" id="mon-log-1"></div>
+      <button class="btn-secondary btn-xs" onclick="clearMonitor(1)" style="margin-top:0.4rem">Clear</button>
     </div>
-    <div class="monitor-controls">
-      <button id="mon-toggle" class="btn-primary" onclick="toggleMonitor()">&#9654; Start Monitor</button>
-      <button class="btn-secondary" onclick="clearMonitor()">Clear Log</button>
+
+    <div class="monitor-panel">
+      <div class="monitor-panel-hdr">
+        <span class="monitor-panel-title">Trigger 3</span>
+        <span class="monitor-path" id="mon-path-2">—</span>
+      </div>
+      <div class="monitor-val-row">
+        <div class="monitor-value mono" id="mon-value-2">0.000</div>
+        <div class="monitor-stats">
+          <span>Min <b id="mon-min-2">—</b></span>
+          <span>Max <b id="mon-max-2">—</b></span>
+          <span>Avg <b id="mon-avg-2">—</b></span>
+        </div>
+      </div>
+      <div class="level-bar-wrap" style="height:6px;margin:0.4rem 0 0.5rem">
+        <div class="level-bar" id="mon-bar-2"></div>
+      </div>
+      <div class="monitor-log" id="mon-log-2"></div>
+      <button class="btn-secondary btn-xs" onclick="clearMonitor(2)" style="margin-top:0.4rem">Clear</button>
     </div>
-    <div class="monitor-log" id="mon-log"></div>
+
+    <div class="monitor-panel">
+      <div class="monitor-panel-hdr">
+        <span class="monitor-panel-title">Trigger 4</span>
+        <span class="monitor-path" id="mon-path-3">—</span>
+      </div>
+      <div class="monitor-val-row">
+        <div class="monitor-value mono" id="mon-value-3">0.000</div>
+        <div class="monitor-stats">
+          <span>Min <b id="mon-min-3">—</b></span>
+          <span>Max <b id="mon-max-3">—</b></span>
+          <span>Avg <b id="mon-avg-3">—</b></span>
+        </div>
+      </div>
+      <div class="level-bar-wrap" style="height:6px;margin:0.4rem 0 0.5rem">
+        <div class="level-bar" id="mon-bar-3"></div>
+      </div>
+      <div class="monitor-log" id="mon-log-3"></div>
+      <button class="btn-secondary btn-xs" onclick="clearMonitor(3)" style="margin-top:0.4rem">Clear</button>
+    </div>
+
   </div>
 
   <h3 style="margin-top:2rem">Connection Info</h3>

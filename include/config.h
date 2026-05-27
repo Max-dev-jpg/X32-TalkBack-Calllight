@@ -14,7 +14,7 @@
 #define AP_MAX_CONNECTIONS     4
 
 // ── Network defaults ──────────────────────────────────────────────────────────
-#define DEFAULT_MIXER_IP       "192.168.0.100"
+#define DEFAULT_MIXER_IP       "192.168.1.3"
 #define DEFAULT_OSC_TX_PORT    10023   // X32 receives on this port
 #define DEFAULT_OSC_RX_PORT    10024   // we listen on this port
 #define OSC_POLL_INTERVAL_MS   200     // how often we poll the mixer
@@ -24,7 +24,7 @@
 // ── GPIO defaults ─────────────────────────────────────────────────────────────
 #define DEFAULT_OUTPUT_PIN     2       // built-in LED on most DevKits
 #define DEFAULT_LED_DATA_PIN   4
-#define DEFAULT_LED_COUNT      30
+#define DEFAULT_LED_COUNT      4
 #define DEFAULT_LED_BRIGHTNESS 128     // 0-255
 
 // ── Trigger defaults ──────────────────────────────────────────────────────────

@@ -280,6 +280,11 @@ function loadTBConfig(c) {
   updateTBVisibility();
 }
 
+// Function for Rounding Floats (Because JSON (De)serialization can lead to very long floats)
+function roundInput(v, digits = 2) {
+  return Number(parseFloat(v || 0).toFixed(digits));
+}
+
 // Channel-type max map for updating input.max
 const CHMAX = [32, 16, 6, 8, 8, 8, 0, 0];
 
@@ -295,12 +300,12 @@ function loadTriggerConfig(triggers) {
     setVal('t' + n + '-chnum',   t.channelNumber  ?? 1);
     setVal('t' + n + '-sigsrc',  t.signalSource   ?? 0);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
-    setVal('t' + n + '-thresh',  t.threshold      ?? 0.5);
-    setVal('t' + n + '-thresh-n',t.threshold      ?? 0.5);
-    setVal('t' + n + '-hyst',    t.hysteresis     ?? 0.05);
-    setVal('t' + n + '-hyst-n',  t.hysteresis     ?? 0.05);
-    setVal('t' + n + '-smooth',  t.smoothing      ?? 0.15);
-    setVal('t' + n + '-smooth-n',t.smoothing      ?? 0.15);
+    setVal('t' + n + '-thresh',  roundInput(t.threshold)      ?? 0.5);
+    setVal('t' + n + '-thresh-n',roundInput(t.threshold)      ?? 0.5);
+    setVal('t' + n + '-hyst',    roundInput(t.hysteresis)     ?? 0.05);
+    setVal('t' + n + '-hyst-n',  roundInput(t.hysteresis)     ?? 0.05);
+    setVal('t' + n + '-smooth',  roundInput(t.smoothing)      ?? 0.15);
+    setVal('t' + n + '-smooth-n',roundInput(t.smoothing)      ?? 0.15);
     setVal('t' + n + '-hold',    t.holdTimeMs     ?? 500);
     setVal('t' + n + '-rel',     t.releaseDelayMs ?? 1000);
     setVal('t' + n + '-dbnc',    t.debounceMs     ?? 50);

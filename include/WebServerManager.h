@@ -64,4 +64,5 @@ private:
     // Accumulator for chunked POST body
     String   _postBody;
     size_t   _postExpected = 0;
+    bool     _postSaveOk   = true;   // result of last applyConfigJSON + save
 };

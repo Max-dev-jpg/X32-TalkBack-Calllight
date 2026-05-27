@@ -64,8 +64,7 @@ static String buildStatusJSON() {
 }
 
 static String buildConfigJSON() {
-    // Estimate: 4 triggers × (fields + up to 1 KB action JSON each) ≈ 12 KB
-    DynamicJsonDocument doc(12288);
+    DynamicJsonDocument doc(4096);
     const DeviceConfig& c = Config;
 
     // Network
@@ -145,8 +144,18 @@ static String buildConfigJSON() {
 }
 
 static bool applyConfigJSON(const String& body) {
-    DynamicJsonDocument doc(12288);
-    if (deserializeJson(doc, body) != DeserializationError::Ok) return false;
+    Serial.printf("[Web] applyConfigJSON: body len=%u, heap=%u\n",
+                  (unsigned)body.length(), (unsigned)ESP.getFreeHeap());
+
+    DynamicJsonDocument doc(4096);
+    // Use c_str() for zero-copy: ArduinoJson stores pointers into body's buffer
+    // instead of duplicating strings into the pool (saves several KB for action JSON)
+    DeserializationError err = deserializeJson(doc, body.c_str());
+    if (err != DeserializationError::Ok) {
+        Serial.printf("[Web] JSON parse FAILED: %s\n", err.c_str());
+        Serial.printf("[Web] Body preview: %.120s\n", body.c_str());
+        return false;
+    }
 
     DeviceConfig& c = Config;
 
@@ -189,6 +198,12 @@ static bool applyConfigJSON(const String& body) {
             if (to.containsKey("trigLedB"))        t.trigLedB        = to["trigLedB"];
             if (to.containsKey("onJson"))          strlcpy(t.onJson,  to["onJson"],  sizeof(t.onJson));
             if (to.containsKey("offJson"))         strlcpy(t.offJson, to["offJson"], sizeof(t.offJson));
+
+            Serial.printf("[Web] T%u applied: en=%d chType=%u chNum=%u sig=%u "
+                          "thr=%.3f hyst=%.3f smth=%.3f inv=%d\n",
+                          n, t.enabled, t.channelType, t.channelNumber,
+                          t.signalSource, t.threshold, t.hysteresis,
+                          t.smoothing, (int)t.invert);
             n++;
         }
     }
@@ -265,7 +280,13 @@ void WebServerManager::setupAPI() {
 
     _server.on("/api/config", HTTP_POST,
         [this](AsyncWebServerRequest* req) {
-            req->send(200, "application/json", "{\"ok\":true}");
+            // _postSaveOk is set by handlePostConfig (body handler runs first)
+            if (_postSaveOk) {
+                req->send(200, "application/json", "{\"ok\":true}");
+            } else {
+                req->send(500, "application/json",
+                          "{\"ok\":false,\"message\":\"Config parse or save failed — check serial log\"}");
+            }
         },
         nullptr,
         [this](AsyncWebServerRequest* req, uint8_t* data,
@@ -315,17 +336,18 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
     _postBody += String((char*)data, len);
 
     if (index + len >= total) {
-        if (applyConfigJSON(_postBody)) {
-            ConfigManager::instance().save();
+        _postSaveOk = applyConfigJSON(_postBody);
+        if (_postSaveOk) {
+            _postSaveOk = ConfigManager::instance().save();
             OutputController::instance().begin();
             LEDController::instance().begin();
             MixerConnection::instance().reconnect();
             TalkbackEngine::instance().begin();
             TriggerManager::instance().begin();
             OSCReceiver::instance().begin();
-            Serial.println("[Web] Config updated.");
+            Serial.println("[Web] Config updated and saved.");
         } else {
-            Serial.println("[Web] Config parse failed!");
+            Serial.println("[Web] Config apply/save FAILED!");
         }
     }
 }

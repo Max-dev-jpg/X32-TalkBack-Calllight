@@ -96,7 +96,7 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
         const char* t = act["t"] | "";
 
         if (strcmp(t, "clearSolo") == 0) {
-            sendNoArg(TB_CLEARSOLO_PATH);
+            sendInt(TB_CLEARSOLO_PATH, 1);
             Serial.println("[Action]   -> clearSolo");
 
         } else if (strcmp(t, "solo") == 0) {

@@ -533,7 +533,7 @@ button:hover   { opacity: 0.85; }
 }
 .monitor-log .log-row:last-child { border-bottom: none; }
 .log-ts   { color: #444; flex-shrink: 0; }
-.log-val  { color: var(--accent); flex-shrink: 0; width: 55px; }
+.log-val  { color: var(--accent); flex-shrink: 0; width: 60px; }
 .log-bar  { flex: 1; align-self: center; background: #1a1a1a;
             border-radius: 100px; height: 3px; overflow: hidden; }
 .log-fill { height: 100%; background: var(--accent); border-radius: 100px; }
@@ -956,7 +956,7 @@ label.trig-rgb-lbl input[type="number"] { width: 62px; }
 }
 
 .card-sub-sep {
-  color: var(--border);
+  color: var(--font-mono);
   font-size: 0.7rem;
   flex-shrink: 0;
 }

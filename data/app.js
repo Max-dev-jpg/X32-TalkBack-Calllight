@@ -5,6 +5,7 @@
 'use strict';
 
 const NUM_TRIGGERS = 4;
+let triggerSignalSources = Array(NUM_TRIGGERS).fill(0);
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(btn => {
@@ -67,10 +68,10 @@ function onTrigChTypeChange(n) {
   }
   onTrigSigSrcChange(n);
 }
-function normalizedToDb(value) {
+function normalizedToDb(value, maxDb = 10) {
   const norm = parseFloat(value) || 0;
   if (norm <= 0.0) return -90.0;
-  if (norm >= 1.0) return 10.0;
+  if (norm >= 1.0) return maxDb;
 
   let db;
   if (norm < 0.0625) {
@@ -83,6 +84,16 @@ function normalizedToDb(value) {
       db = ((norm - 0.5) / 0.5) * 20 - 10;
   }
   return Math.round(db * 10) / 10;
+}
+function formatSignalValue(value, signalSource) {
+  const val = parseFloat(value) || 0;
+  if (signalSource === 0) {
+    return normalizedToDb(val, 10).toFixed(1) + ' dB';
+  }
+  if (signalSource === 1) {
+    return normalizedToDb(val, 0).toFixed(1) + ' dB';
+  }
+  return val.toFixed(0);
 }
 function dbToNormalized(value) {
   const db = parseFloat(value);
@@ -117,14 +128,23 @@ function updateThresholdDisplay(n) {
   const labelText = label ? label.querySelector('.threshold-label-text') : null;
   const valueNorm = getThresholdValue(n);
 
+  const thresholdLabel = document.getElementById('t' + n + '-thresh')?.closest('label');
+  const hysteresisLabel = document.getElementById('t' + n + '-hyst')?.closest('label');
+  const smoothingLabel = document.getElementById('t' + n + '-smooth')?.closest('label');
+  const showThreshold = sigSrc !== 2;
+
+  [thresholdLabel, hysteresisLabel, smoothingLabel].forEach(el => {
+    if (el) el.style.display = showThreshold ? '' : 'none';
+  });
+
   if (sigSrc === 2) {
-    if (label) label.style.display = 'none';
+    if (labelText) labelText.textContent = 'Threshold (disabled for Mute)';
     return;
   }
 
   if (label) label.style.display = '';
   if (sigSrc === 0) {
-    const db = normalizedToDb(valueNorm);
+    const db = normalizedToDb(valueNorm, 10);
     range.min = -90;
     range.max = 10;
     range.step = 0.1;
@@ -134,7 +154,20 @@ function updateThresholdDisplay(n) {
     range.value = db.toFixed(1);
     num.value = db.toFixed(1);
     if (labelText) labelText.textContent = 'Threshold (-90.0 – +10.0 dB)';
-  } else {
+  }
+  else if (sigSrc === 1) {
+    const db = normalizedToDb(valueNorm, 0);
+    range.min = -90;
+    range.max = 0;
+    range.step = 0.1;
+    num.min = -90;
+    num.max = 0;
+    num.step = 0.1;
+    range.value = db.toFixed(1);
+    num.value = db.toFixed(1);
+    if (labelText) labelText.textContent = 'Threshold (-90.0 – 0.0 dB)';
+  }  
+  else {
     range.min = 0;
     range.max = 1;
     range.step = 0.01;
@@ -156,6 +189,7 @@ function updateThresholdNorm(n, rawValue) {
   if (num)   num.dataset.norm = norm;
 }
 function onTrigSigSrcChange(n) {
+  triggerSignalSources[n] = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   updateThresholdDisplay(n);
 }
 
@@ -488,7 +522,9 @@ function loadTriggerConfig(triggers) {
     setChk('t' + n + '-enabled', t.enabled);
     setVal('t' + n + '-chtype',  t.channelType   ?? 3);
     setVal('t' + n + '-chnum',   t.channelNumber  ?? 1);
-    setVal('t' + n + '-sigsrc',  t.signalSource   ?? 0);
+    const sigSrc = t.signalSource ?? 0;
+    triggerSignalSources[n] = sigSrc;
+    setVal('t' + n + '-sigsrc',  sigSrc);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
     const thresholdNorm = Number.isFinite(t.threshold) ? t.threshold : 0.5;
     const threshEl = document.getElementById('t' + n + '-thresh');
@@ -792,12 +828,15 @@ function updateStatus(d) {
   // Per-trigger status cards (Trigger 1–4)
   if (Array.isArray(d.triggers)) {
     d.triggers.forEach((t, n) => {
-      const lv = parseFloat(t.level    ?? 0).toFixed(3);
-      const sv = parseFloat(t.smoothed ?? 0).toFixed(3);
+      const lvRaw = parseFloat(t.level    ?? 0);
+      const svRaw = parseFloat(t.smoothed ?? 0);
+      const src = triggerSignalSources[n] ?? 0;
+      const lv = formatSignalValue(lvRaw, src);
+      const sv = formatSignalValue(svRaw, src);
       setText('st-trig-' + n + '-level',  lv);
       setText('st-trig-' + n + '-smooth', sv);
       const bar = document.getElementById('st-trig-' + n + '-bar');
-      if (bar) bar.style.width = (parseFloat(lv) * 100) + '%';
+      if (bar) bar.style.width = (Math.max(0, Math.min(1, lvRaw)) * 100) + '%';
       const statusEl = document.getElementById('st-trig-' + n + '-status');
       if (statusEl) {
         if (!t.enabled) {
@@ -966,10 +1005,11 @@ function updateOSCMonitor(d) {
     const st  = MON_STATE[n];
 
     const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    setText('mon-value-' + n, val.toFixed(4));
+    const src = triggerSignalSources[n] ?? 0;
+    setText('mon-value-' + n, formatSignalValue(val, src));
     setText('mon-path-'  + n, m.address || '—');
     const bar = document.getElementById('mon-bar-' + n);
-    if (bar) bar.style.width = (val * 100) + '%';
+    if (bar) bar.style.width = (Math.max(0, Math.min(1, val)) * 100) + '%';
 
     if (st.min === null || val < st.min) st.min = val;
     if (st.max === null || val > st.max) st.max = val;
@@ -987,9 +1027,10 @@ function updateOSCMonitor(d) {
     if (!log || !log.classList.contains('active')) return;
     const ts  = new Date().toLocaleTimeString('de-DE', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
     const pct = Math.round(val * 100);
+    const displayValue = formatSignalValue(val, src);
     const row = document.createElement('div');
     row.className = 'log-row';
-    row.innerHTML = `<span class="log-ts">${ts}</span><span class="log-val">${val.toFixed(4)}</span>` +
+    row.innerHTML = `<span class="log-ts">${ts}</span><span class="log-val">${displayValue}</span>` +
       `<span class="log-bar"><span class="log-fill" style="width:${pct}%"></span></span>` +
       (m.triggered ? '<span class="log-trig">▲</span>' : '');
     log.insertBefore(row, log.firstChild);

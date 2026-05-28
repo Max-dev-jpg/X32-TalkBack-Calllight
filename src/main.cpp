@@ -79,10 +79,11 @@ void loop() {
     // isForcedOff() is set by a 'forceout' action and overrides everything —
     // talkback can silence the call light even while triggers are active.
     bool suppressed = ActionEngine::isForcedOff();
+    bool mixerConnected = MixerConnection::instance().isConnected();
     bool triggered  = !suppressed && (
-        TriggerManager::instance().isAnyTriggered()
+        (mixerConnected && TriggerManager::instance().isAnyTriggered())
         || ActionEngine::isOutputActive()
-        || OSCReceiver::instance().isExtTriggerActive()
+        || (mixerConnected && OSCReceiver::instance().isExtTriggerActive())
     );
 
     if (Config.outputType == OUTPUT_GPIO || Config.outputType == OUTPUT_BOTH) {
@@ -91,39 +92,46 @@ void loop() {
     }
 
     if (Config.outputType == OUTPUT_WS2812 || Config.outputType == OUTPUT_BOTH) {
-        LEDController::instance().setTrigger(triggered);
 
-        // Per-trigger color override with configurable priority
-        if (Config.trigPriorityMode == PRIO_NEWEST) {
-            // Most recently activated trigger with useTriggerColor wins
-            uint32_t latestMs = 0;
-            int8_t   winner   = -1;
-            for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
-                const TriggerConfig& tc = Config.triggers[n];
-                if (tc.enabled && tc.useTriggerColor &&
-                        TriggerManager::instance().isTriggered(n)) {
-                    uint32_t ts = TriggerManager::instance().getTriggerStartMs(n);
-                    if (winner < 0 || ts > latestMs) { latestMs = ts; winner = (int8_t)n; }
-                }
-            }
-            if (winner >= 0) {
-                const TriggerConfig& wc = Config.triggers[(uint8_t)winner];
-                LEDController::instance().setActiveColor(wc.trigLedR,
-                                                          wc.trigLedG,
-                                                          wc.trigLedB);
-            }
+        if (!mixerConnected) {
+            // Show a continuously lit dark red status indicator while the mixer is disconnected.
+            LEDController::instance().setForceSolidColor(true, 60, 0, 0);
         } else {
-            // PRIO_FIXED: use trigPriorityOrder[] — first match in list wins
-            for (uint8_t i = 0; i < MAX_TRIGGERS; i++) {
-                uint8_t n = Config.trigPriorityOrder[i];
-                if (n >= MAX_TRIGGERS) continue;
-                const TriggerConfig& tc = Config.triggers[n];
-                if (tc.enabled && tc.useTriggerColor &&
-                        TriggerManager::instance().isTriggered(n)) {
-                    LEDController::instance().setActiveColor(tc.trigLedR,
-                                                              tc.trigLedG,
-                                                              tc.trigLedB);
-                    break;
+            LEDController::instance().setForceSolidColor(false);
+            LEDController::instance().setTrigger(triggered);
+
+            // Per-trigger color override with configurable priority
+            if (Config.trigPriorityMode == PRIO_NEWEST) {
+                // Most recently activated trigger with useTriggerColor wins
+                uint32_t latestMs = 0;
+                int8_t   winner   = -1;
+                for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+                    const TriggerConfig& tc = Config.triggers[n];
+                    if (tc.enabled && tc.useTriggerColor &&
+                            TriggerManager::instance().isTriggered(n)) {
+                        uint32_t ts = TriggerManager::instance().getTriggerStartMs(n);
+                        if (winner < 0 || ts > latestMs) { latestMs = ts; winner = (int8_t)n; }
+                    }
+                }
+                if (winner >= 0) {
+                    const TriggerConfig& wc = Config.triggers[(uint8_t)winner];
+                    LEDController::instance().setActiveColor(wc.trigLedR,
+                                                              wc.trigLedG,
+                                                              wc.trigLedB);
+                }
+            } else {
+                // PRIO_FIXED: use trigPriorityOrder[] — first match in list wins
+                for (uint8_t i = 0; i < MAX_TRIGGERS; i++) {
+                    uint8_t n = Config.trigPriorityOrder[i];
+                    if (n >= MAX_TRIGGERS) continue;
+                    const TriggerConfig& tc = Config.triggers[n];
+                    if (tc.enabled && tc.useTriggerColor &&
+                            TriggerManager::instance().isTriggered(n)) {
+                        LEDController::instance().setActiveColor(tc.trigLedR,
+                                                                  tc.trigLedG,
+                                                                  tc.trigLedB);
+                        break;
+                    }
                 }
             }
         }

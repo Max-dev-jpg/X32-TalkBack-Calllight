@@ -60,6 +60,16 @@ void LEDController::testPulse(uint32_t durationMs) {
     _testEndMs = millis() + durationMs;
 }
 
+void LEDController::setForceSolidColor(bool enable, uint8_t r, uint8_t g, uint8_t b) {
+    _forceSolid = enable;
+    if (enable) {
+        _active = true;
+        _activeR = r;
+        _activeG = g;
+        _activeB = b;
+    }
+}
+
 void LEDController::loop() {
     if (!_initialised) return;
 
@@ -81,6 +91,15 @@ void LEDController::loop() {
             _testMode = false;
             _active   = false;
         }
+    }
+
+    if (_forceSolid) {
+        _active = true;
+        uint32_t col = scaledColor(1.0f);
+        for (int i = 0; i < _strip.numPixels(); i++) _strip.setPixelColor(i, col);
+        _strip.show();
+        _ledState = true;
+        return;
     }
 
     if (!_active) {

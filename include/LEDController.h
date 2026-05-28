@@ -22,6 +22,7 @@ public:
     // Override the strip color for the current frame. Call before loop().
     // Falls back to global Config.ledR/G/B if not called each frame.
     void setActiveColor(uint8_t r, uint8_t g, uint8_t b);
+    void setForceSolidColor(bool enable, uint8_t r = 0, uint8_t g = 0, uint8_t b = 0);
     void testPulse(uint32_t durationMs = 2000);
 
     bool isActive() const { return _active; }
@@ -46,6 +47,7 @@ private:
     uint8_t  _activeR        = 255;
     uint8_t  _activeG        = 120;
     uint8_t  _activeB        = 0;
+    bool     _forceSolid     = false;
 
     // Flash timing
     bool     _ledState       = false;

@@ -112,6 +112,8 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
 
 void TriggerManager::loop() {
     uint32_t now = millis();
+    bool mixerConnected = MixerConnection::instance().isConnected();
+
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         if (!Config.triggers[n].enabled) {
             // Keep state clean when trigger is disabled
@@ -122,6 +124,25 @@ void TriggerManager::loop() {
             _state[n].smoothed = 0.0f;
             continue;
         }
+
+        if (!mixerConnected) {
+            // Do not allow mixer triggers to stay active when the mixer is disconnected.
+            if (_state[n].triggered) {
+                _state[n].triggered = false;
+                ActionEngine::execute(Config.triggers[n].offJson, n);
+                ActionEngine::clearOutput(n);
+            }
+            _state[n].smoothed      = 0.0f;
+            _state[n].rawAbove      = false;
+            _state[n].debouncing    = false;
+            _state[n].inHold        = false;
+            _state[n].inRelease     = false;
+            _state[n].debounceStart = 0;
+            _state[n].holdStart     = 0;
+            _state[n].releaseStart  = 0;
+            continue;
+        }
+
         float level = MixerConnection::instance().getLevelForTrigger(n);
         processTrigger(n, level, now);
     }

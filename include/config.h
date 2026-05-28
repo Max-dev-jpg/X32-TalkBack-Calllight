@@ -19,7 +19,7 @@
 #define DEFAULT_OSC_RX_PORT    10024   // we listen on this port
 #define OSC_POLL_INTERVAL_MS   200     // unused: fader/mute queries run at XREMOTE_INTERVAL_MS cadence
 #define XREMOTE_INTERVAL_MS    8000    // /xremote renewal period (< 10 s)
-#define MIXER_TIMEOUT_MS       12000   // must be > XREMOTE_INTERVAL_MS to avoid false disconnects
+#define MIXER_TIMEOUT_MS       10000   // must be > XREMOTE_INTERVAL_MS to avoid false disconnects
 #define MIXER_KEEPALIVE_INTERVAL_MS  4000  // /info keepalive to sustain connection when mixer is idle
 
 // ── GPIO defaults ─────────────────────────────────────────────────────────────

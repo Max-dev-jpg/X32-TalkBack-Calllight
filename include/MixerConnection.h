@@ -54,10 +54,12 @@ private:
     // 0-based channel index in the /meters/6 blob for SIG_METER triggers; -1 otherwise
     int32_t  _meterChannelIds[MAX_TRIGGERS] = {-1,-1,-1,-1};
 
-    uint32_t _lastXRemoteMs    = 0;
-    uint32_t _lastResponseMs   = 0;
-    uint32_t _lastReconnectMs  = 0;
-    uint32_t _lastKeepaliveMs  = 0;
+    uint32_t _lastXRemoteMs      = 0;
+    uint32_t _lastResponseMs     = 0;
+    uint32_t _lastReconnectMs    = 0;
+    uint32_t _lastKeepaliveMs    = 0;
+    uint32_t _lastIgnoredPacketMs = 0;
+    uint32_t _lastInvalidPacketMs = 0;
 
     uint8_t  _txBuf[256];
     uint8_t  _rxBuf[1024];

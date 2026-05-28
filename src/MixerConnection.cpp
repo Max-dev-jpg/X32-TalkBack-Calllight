@@ -23,7 +23,21 @@ void MixerConnection::begin() {
     } else {
         Serial.println("[Mixer] UDP begin FAILED!");
     }
+
     rebuildPaths();
+
+    if (_udpOpen) {
+        // Perform an immediate handshake/query so the mixer starts pushing updates
+        // and the connected flag can be confirmed without waiting for the first loop.
+        sendXRemote();
+        sendMeterSubscriptions();
+        sendFaderMuteQueries();
+        uint32_t now = millis();
+        _lastXRemoteMs    = now;
+        _lastKeepaliveMs  = now;
+        _lastReconnectMs  = now;
+        _lastResponseMs   = now;
+    }
 }
 
 void MixerConnection::reconnect() {
@@ -109,44 +123,66 @@ void MixerConnection::sendMeterSubscriptions() {
 // ── Incoming messages ─────────────────────────────────────────────────────────
 
 void MixerConnection::processIncoming() {
-    int packetSize = _udp.parsePacket();
-    if (packetSize <= 0) return;
+    IPAddress expectedIP;
+    expectedIP.fromString(Config.mixerIP);
 
-    int read = _udp.read(_rxBuf, sizeof(_rxBuf) - 1);
-    if (read <= 0) return;
-
-    OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)read);
-    if (!msg.valid) return;
-
-    // Any valid OSC packet from the mixer keeps the connection alive —
-    // including /info keepalive responses, xremote-pushed changes, etc.
-    _lastResponseMs = millis();
-    if (!_connected) {
-        _connected = true;
-        Serial.println("[Mixer] Connected.");
-    }
-
-    // Match the message address against each trigger's resolved path / alias
-    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
-        if (_triggerPaths[n].length() == 0) continue;
-        if (msg.address != _triggerPaths[n])  continue;
-
-        float level = 0.0f;
-        if (msg.typeTag == 'f') {
-            level = msg.floatVal;
-        } else if (msg.typeTag == 'i') {
-            // Mute state: /mix/on → 1 = active, 0 = muted
-            level = (float)msg.intVal;
-        } else if (msg.typeTag == 'b') {
-            // Blob from /batchsubscribe — the X32 sends the full meter bank;
-            // read the float at the channel index we subscribed to.
-            uint32_t chIdx = (_meterChannelIds[n] >= 0) ? (uint32_t)_meterChannelIds[n] : 0;
-            level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
-                                                   msg.blobArgOffset, chIdx);
+    int packetSize;
+    while ((packetSize = _udp.parsePacket()) > 0) {
+        IPAddress fromIP = _udp.remoteIP();
+        if (fromIP != expectedIP) {
+            if (millis() - _lastIgnoredPacketMs > 15000) {
+                Serial.printf("[Mixer] Ignoring UDP packet from %s\n", fromIP.toString().c_str());
+                _lastIgnoredPacketMs = millis();
+            }
+            int discard = _udp.read(_rxBuf, sizeof(_rxBuf));
+            (void)discard;
+            continue;
         }
 
-        level = constrain(level, 0.0f, 1.0f);
-        _triggerLevels[n] = level;
+        int read = _udp.read(_rxBuf, sizeof(_rxBuf) - 1);
+        if (read <= 0) continue;
+
+        OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)read);
+        if (!msg.valid) {
+            if (millis() - _lastInvalidPacketMs > 15000) {
+                Serial.printf("[Mixer] Invalid OSC packet received from mixer %s\n",
+                              fromIP.toString().c_str());
+                _lastInvalidPacketMs = millis();
+            }
+            continue;
+        }
+
+        // Any valid OSC packet from the mixer keeps the connection alive —
+        // including /info keepalive responses, xremote-pushed changes, etc.
+        _lastResponseMs = millis();
+        if (!_connected) {
+            _connected = true;
+            Serial.printf("[Mixer] Connected from %s addr=%s type=%c\n",
+                          fromIP.toString().c_str(), msg.address.c_str(), msg.typeTag);
+        }
+
+        // Match the message address against each trigger's resolved path / alias
+        for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+            if (_triggerPaths[n].length() == 0) continue;
+            if (msg.address != _triggerPaths[n])  continue;
+
+            float level = 0.0f;
+            if (msg.typeTag == 'f') {
+                level = msg.floatVal;
+            } else if (msg.typeTag == 'i') {
+                // Mute state: /mix/on → 1 = active, 0 = muted
+                level = (float)msg.intVal;
+            } else if (msg.typeTag == 'b') {
+                // Blob from /batchsubscribe — the X32 sends the full meter bank;
+                // read the float at the channel index we subscribed to.
+                uint32_t chIdx = (_meterChannelIds[n] >= 0) ? (uint32_t)_meterChannelIds[n] : 0;
+                level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
+                                                       msg.blobArgOffset, chIdx);
+            }
+
+            level = constrain(level, 0.0f, 1.0f);
+            _triggerLevels[n] = level;
+        }
     }
 }
 
@@ -184,10 +220,16 @@ void MixerConnection::loop() {
 
     if (_udpOpen) processIncoming();
 
+    // Re-read the current time after processing incoming packets.
+    // processIncoming() may update _lastResponseMs to a later timestamp than the
+    // loop-start time, so the timeout check must use a fresh clock value.
+    now = millis();
+
     // Timeout
     if (_connected && (now - _lastResponseMs > MIXER_TIMEOUT_MS)) {
         _connected = false;
-        Serial.println("[Mixer] Timeout — connection lost.");
+        Serial.printf("[Mixer] Timeout — connection lost after %u ms. lastResponse=%u now=%u\n",
+                      (unsigned)(now - _lastResponseMs), (unsigned)_lastResponseMs, (unsigned)now);
     }
 
     if (!_connected && now - _lastReconnectMs > MIXER_RECONNECT_INTERVAL_MS) {

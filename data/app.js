@@ -145,25 +145,26 @@ function updateThresholdDisplay(n) {
   if (label) label.style.display = '';
   if (sigSrc === 0) {
     const db = normalizedToDb(valueNorm, 10);
-    range.min = -90;
-    range.max = 10;
-    range.step = 0.1;
+    range.min = 0;
+    range.max = 1;
+    range.step = 0.01;
     num.min = -90;
     num.max = 10;
     num.step = 0.1;
-    range.value = db.toFixed(1);
+    range.value = valueNorm.toFixed(2);
     num.value = db.toFixed(1);
     if (labelText) labelText.textContent = 'Threshold (-90.0 – +10.0 dB)';
   }
   else if (sigSrc === 1) {
-    const db = normalizedToDb(valueNorm, 0);
-    range.min = -90;
-    range.max = 0;
-    range.step = 0.1;
+    let db = normalizedToDb(valueNorm, 0);
+    if (db > 0) db = 0;
+    range.min = 0;
+    range.max = 1;
+    range.step = 0.01;
     num.min = -90;
     num.max = 0;
     num.step = 0.1;
-    range.value = db.toFixed(1);
+    range.value = valueNorm.toFixed(2);
     num.value = db.toFixed(1);
     if (labelText) labelText.textContent = 'Threshold (-90.0 – 0.0 dB)';
   }  
@@ -180,9 +181,13 @@ function updateThresholdDisplay(n) {
     if (labelText) labelText.textContent = 'Threshold (0.0 – 1.0)';
   }
 }
-function updateThresholdNorm(n, rawValue) {
+function updateThresholdNorm(n, rawValue, fromRange = false) {
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
-  const norm = sigSrc === 0 ? dbToNormalized(rawValue) : (parseFloat(rawValue) || 0);
+  const norm = fromRange
+    ? (parseFloat(rawValue) || 0)
+    : ((sigSrc === 0 || sigSrc === 1)
+       ? dbToNormalized(rawValue)
+       : (parseFloat(rawValue) || 0));
   const range = document.getElementById('t' + n + '-thresh');
   const num   = document.getElementById('t' + n + '-thresh-n');
   if (range) range.dataset.norm = norm;
@@ -675,21 +680,40 @@ function syncRange(numEl, rangeName) {
 }
 // Range/number sync by element ID (trigger sliders)
 function syncNumById(rangeEl, numId) {
-  document.getElementById(numId).value = rangeEl.value;
-  if (rangeEl.id.endsWith('-thresh')) {
-    const triggerId = rangeEl.id.match(/^t(\d+)-thresh$/);
-    if (triggerId) updateThresholdNorm(triggerId[1], rangeEl.value);
+  const numEl = document.getElementById(numId);
+  const triggerId = rangeEl.id.match(/^t(\d+)-thresh$/);
+  if (triggerId) {
+    const n = triggerId[1];
+    const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+    updateThresholdNorm(n, rangeEl.value, true);
+    if (sigSrc === 0 || sigSrc === 1) {
+      const db = normalizedToDb(rangeEl.value, sigSrc === 0 ? 10 : 0);
+      if (numEl) numEl.value = db.toFixed(1);
+    } else {
+      if (numEl) numEl.value = rangeEl.value;
+    }
+    return;
   }
+  if (numEl) numEl.value = rangeEl.value;
 }
 function syncRangeById(numEl, rangeId) {
   const r = document.getElementById(rangeId);
-  if (r) {
-    r.value = numEl.value;
-    if (rangeId.endsWith('-thresh')) {
-      const triggerId = rangeId.match(/^t(\d+)-thresh$/);
-      if (triggerId) updateThresholdNorm(triggerId[1], numEl.value);
+  if (!r) return;
+  const triggerId = rangeId.match(/^t(\d+)-thresh$/);
+  if (triggerId) {
+    const n = triggerId[1];
+    const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+    if (sigSrc === 0 || sigSrc === 1) {
+      const norm = dbToNormalized(numEl.value);
+      r.value = norm.toFixed(2);
+      updateThresholdNorm(n, numEl.value, false);
+    } else {
+      r.value = numEl.value;
+      updateThresholdNorm(n, numEl.value, false);
     }
+    return;
   }
+  r.value = numEl.value;
 }
 
 // ── Color picker ──────────────────────────────────────────────────────────────

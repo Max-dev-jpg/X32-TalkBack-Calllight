@@ -326,10 +326,9 @@ function toggleMonitorGraph(n) {
   const btn    = document.getElementById('mon-view-btn-' + n);
   const inGraph = (monViewMode[n] === 'graph');
   if (log)    log.style.display    = inGraph ? 'none' : '';
-  if (canvas) canvas.style.display = inGraph ? ''     : 'none';
+  if (canvas) canvas.style.display = inGraph ? 'block' : 'none';
   if (btn)    btn.textContent      = inGraph ? '📋 Log' : '📊 Graph';
-  if (inGraph && log && log.classList.contains('active')) {
-    if (canvas) canvas.classList.add('active');
+  if (inGraph && canvas) {
     drawMonitorGraph(n);
   }
 }

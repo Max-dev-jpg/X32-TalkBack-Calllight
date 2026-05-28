@@ -366,6 +366,7 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
             TalkbackEngine::instance().begin();
             TriggerManager::instance().begin();
             OSCReceiver::instance().begin();
+            NetworkManager::instance().applyConfig();
             Serial.println("[Web] Config updated and saved.");
         } else {
             Serial.println("[Web] Config apply/save FAILED!");

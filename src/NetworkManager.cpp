@@ -73,6 +73,12 @@ void NetworkManager::startSTA() {
 
     WiFi.begin(Config.wifiSSID, Config.wifiPassword);
     _lastReconnectAttempt = millis();
+
+    // refresh snapshot of applied config for change detection
+    strncpy(_lastConfig.ssid, Config.wifiSSID, 33);
+    strncpy(_lastConfig.password, Config.wifiPassword, 64);
+    _lastConfig.useDHCP = Config.useDHCP;
+    strncpy(_lastConfig.staticIP, Config.staticIP, 16);
 }
 
 // ── mDNS ─────────────────────────────────────────────────────────────────────
@@ -210,4 +216,32 @@ void NetworkManager::loop() {
 
 uint8_t NetworkManager::getAPClientCount() const {
     return WiFi.softAPgetStationNum();
+}
+
+// ── Config changes  ─────────────────────────────────────────────────────────────
+bool NetworkManager::hasConfigChanged() {
+    bool changed = (strcmp(_lastConfig.ssid, Config.wifiSSID) != 0) ||
+                   (strcmp(_lastConfig.password, Config.wifiPassword) != 0) ||
+                   (_lastConfig.useDHCP != Config.useDHCP) ||
+                   (strcmp(_lastConfig.staticIP, Config.staticIP) != 0);
+    return changed;
+}
+
+// ── apply new configurations  ─────────────────────────────────────────────────────────────
+void NetworkManager::applyConfig() {
+    if (!hasConfigChanged()) {
+        Serial.println("[Network] No changes in network config detected. Skipping reconfiguration.");
+        return; 
+    }
+
+    Serial.println("[Network] Re-evaluating connection...");
+    
+    WiFi.disconnect(true);
+    delay(100);
+    
+    if (Config.wifiSSID[0] != '\0') {
+        startSTA();
+    } else {
+        startAP();
+    }
 }

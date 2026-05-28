@@ -40,7 +40,7 @@ reboots and power loss. Settings are managed through the web interface.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `threshold` | `0.50` | Signal level to activate (0.0–1.0) |
+| `threshold` | `0.50` | Signal level to activate. Shown as -90.0 dB … +10.0 dB for fader source, 0.0–1.0 for meters |
 | `hysteresis` | `0.05` | Dead-band below threshold for deactivation |
 | `smoothing` | `0.15` | EMA alpha: 0.01 = heavy, 1.0 = none |
 | `holdTimeMs` | `500` | Minimum ON duration after trigger (ms) |

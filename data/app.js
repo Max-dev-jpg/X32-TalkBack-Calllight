@@ -65,9 +65,98 @@ function onTrigChTypeChange(n) {
       if (chType === 3 && parseInt(sigSrc.value) === 1) sigSrc.value = '0';
     }
   }
+  onTrigSigSrcChange(n);
+}
+function normalizedToDb(value) {
+  const norm = parseFloat(value) || 0;
+  if (norm <= 0.0) return -90.0;
+  if (norm >= 1.0) return 10.0;
+
+  let db;
+  if (norm < 0.0625) {
+      db = (norm / 0.0625) * 30 - 90;
+  } else if (norm < 0.25) {
+      db = ((norm - 0.0625) / 0.1875) * 30 - 60;
+  } else if (norm < 0.5) {
+      db = ((norm - 0.25) / 0.25) * 20 - 30;
+  } else {
+      db = ((norm - 0.5) / 0.5) * 20 - 10;
+  }
+  return Math.round(db * 10) / 10;
+}
+function dbToNormalized(value) {
+  const db = parseFloat(value);
+  if (!Number.isFinite(db) || db <= -90) return 0.0;
+  if (db >= 10) return 1.0;
+
+  let norm;
+  if (db < -60) {
+      norm = ((db + 90) / 30) * 0.0625;
+  } else if (db < -30) {
+      norm = 0.0625 + ((db + 60) / 30) * 0.1875;
+  } else if (db < -10) {
+      norm = 0.25 + ((db + 30) / 20) * 0.25;
+  } else {
+      norm = 0.5 + ((db + 10) / 20) * 0.5;
+  }
+  return Math.max(0, Math.min(1, norm));
+}
+function getThresholdValue(n) {
+  const range = document.getElementById('t' + n + '-thresh');
+  if (!range) return 0;
+  const norm = parseFloat(range.dataset.norm);
+  return Number.isFinite(norm) ? norm : 0;
+}
+function updateThresholdDisplay(n) {
+  const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+  const range  = document.getElementById('t' + n + '-thresh');
+  const num    = document.getElementById('t' + n + '-thresh-n');
+  if (!range || !num) return;
+
+  const label = range.closest('label');
+  const labelText = label ? label.querySelector('.threshold-label-text') : null;
+  const valueNorm = getThresholdValue(n);
+
+  if (sigSrc === 2) {
+    if (label) label.style.display = 'none';
+    return;
+  }
+
+  if (label) label.style.display = '';
+  if (sigSrc === 0) {
+    const db = normalizedToDb(valueNorm);
+    range.min = -90;
+    range.max = 10;
+    range.step = 0.1;
+    num.min = -90;
+    num.max = 10;
+    num.step = 0.1;
+    range.value = db.toFixed(1);
+    num.value = db.toFixed(1);
+    if (labelText) labelText.textContent = 'Threshold (-90.0 – +10.0 dB)';
+  } else {
+    range.min = 0;
+    range.max = 1;
+    range.step = 0.01;
+    num.min = 0;
+    num.max = 1;
+    num.step = 0.01;
+    const formatted = valueNorm.toFixed(2);
+    range.value = formatted;
+    num.value = formatted;
+    if (labelText) labelText.textContent = 'Threshold (0.0 – 1.0)';
+  }
+}
+function updateThresholdNorm(n, rawValue) {
+  const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+  const norm = sigSrc === 0 ? dbToNormalized(rawValue) : (parseFloat(rawValue) || 0);
+  const range = document.getElementById('t' + n + '-thresh');
+  const num   = document.getElementById('t' + n + '-thresh-n');
+  if (range) range.dataset.norm = norm;
+  if (num)   num.dataset.norm = norm;
 }
 function onTrigSigSrcChange(n) {
-  // Reserved for future use (e.g. hide threshold for mute-only display)
+  updateThresholdDisplay(n);
 }
 
 // ── Per-trigger LED color helpers ─────────────────────────────────────────────
@@ -401,8 +490,13 @@ function loadTriggerConfig(triggers) {
     setVal('t' + n + '-chnum',   t.channelNumber  ?? 1);
     setVal('t' + n + '-sigsrc',  t.signalSource   ?? 0);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
-    setVal('t' + n + '-thresh',  roundInput(t.threshold)      ?? 0.5);
-    setVal('t' + n + '-thresh-n',roundInput(t.threshold)      ?? 0.5);
+    const thresholdNorm = Number.isFinite(t.threshold) ? t.threshold : 0.5;
+    const threshEl = document.getElementById('t' + n + '-thresh');
+    const threshNumEl = document.getElementById('t' + n + '-thresh-n');
+    if (threshEl) threshEl.dataset.norm = thresholdNorm;
+    if (threshNumEl) threshNumEl.dataset.norm = thresholdNorm;
+    setVal('t' + n + '-thresh',  roundInput(thresholdNorm)      ?? 0.5);
+    setVal('t' + n + '-thresh-n',roundInput(thresholdNorm)      ?? 0.5);
     setVal('t' + n + '-hyst',    roundInput(t.hysteresis)     ?? 0.05);
     setVal('t' + n + '-hyst-n',  roundInput(t.hysteresis)     ?? 0.05);
     setVal('t' + n + '-smooth',  roundInput(t.smoothing)      ?? 0.15);
@@ -427,6 +521,7 @@ function loadTriggerConfig(triggers) {
 
     // Apply channel-type constraints
     onTrigChTypeChange(n);
+    onTrigSigSrcChange(n);
     updateTrigBodyVisibility(n);
 
     // Action lists
@@ -450,7 +545,7 @@ function collectTriggers() {
       channelNumber:  getInt('t' + n + '-chnum'),
       signalSource:   getInt('t' + n + '-sigsrc'),
       customOSCPath:  getVal('t' + n + '-oscpath'),
-      threshold:      getNum('t' + n + '-thresh'),
+      threshold:      getThresholdValue(n),
       hysteresis:     getNum('t' + n + '-hyst'),
       smoothing:      getNum('t' + n + '-smooth'),
       holdTimeMs:     getInt('t' + n + '-hold'),
@@ -545,10 +640,20 @@ function syncRange(numEl, rangeName) {
 // Range/number sync by element ID (trigger sliders)
 function syncNumById(rangeEl, numId) {
   document.getElementById(numId).value = rangeEl.value;
+  if (rangeEl.id.endsWith('-thresh')) {
+    const triggerId = rangeEl.id.match(/^t(\d+)-thresh$/);
+    if (triggerId) updateThresholdNorm(triggerId[1], rangeEl.value);
+  }
 }
 function syncRangeById(numEl, rangeId) {
   const r = document.getElementById(rangeId);
-  if (r) r.value = numEl.value;
+  if (r) {
+    r.value = numEl.value;
+    if (rangeId.endsWith('-thresh')) {
+      const triggerId = rangeId.match(/^t(\d+)-thresh$/);
+      if (triggerId) updateThresholdNorm(triggerId[1], numEl.value);
+    }
+  }
 }
 
 // ── Color picker ──────────────────────────────────────────────────────────────

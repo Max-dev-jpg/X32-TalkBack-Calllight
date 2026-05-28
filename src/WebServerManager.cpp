@@ -127,12 +127,20 @@ static String buildConfigJSON() {
     doc["ledB"]          = c.ledB;
 
     // Talkback Engine
-    doc["tbEnabled"]  = c.tbEnabled;
-    doc["tbMonitor"]  = c.tbMonitor;
-    doc["tbAOnJson"]  = c.tbAOnJson;
-    doc["tbAOffJson"] = c.tbAOffJson;
-    doc["tbBOnJson"]  = c.tbBOnJson;
-    doc["tbBOffJson"] = c.tbBOffJson;
+    doc["tbEnabled"]    = c.tbEnabled;
+    doc["tbMonitor"]    = c.tbMonitor;
+    doc["tbBFollowsA"]  = c.tbBFollowsA;
+    doc["tbAOnJson"]    = c.tbAOnJson;
+    doc["tbAOffJson"]   = c.tbAOffJson;
+    doc["tbBOnJson"]    = c.tbBOnJson;
+    doc["tbBOffJson"]   = c.tbBOffJson;
+
+    // Multi-trigger priority
+    doc["trigPriorityMode"] = c.trigPriorityMode;
+    {
+        JsonArray pArr = doc.createNestedArray("trigPriorityOrder");
+        for (uint8_t n = 0; n < MAX_TRIGGERS; n++) pArr.add(c.trigPriorityOrder[n]);
+    }
 
     // External OSC
     doc["extOscEnabled"] = c.extOscEnabled;
@@ -224,12 +232,25 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("ledB"))          c.ledB          = doc["ledB"];
 
     // Talkback Engine
-    if (doc.containsKey("tbEnabled")) c.tbEnabled = doc["tbEnabled"];
-    if (doc.containsKey("tbMonitor")) c.tbMonitor = doc["tbMonitor"];
-    if (doc.containsKey("tbAOnJson"))  strlcpy(c.tbAOnJson,  doc["tbAOnJson"],  sizeof(c.tbAOnJson));
-    if (doc.containsKey("tbAOffJson")) strlcpy(c.tbAOffJson, doc["tbAOffJson"], sizeof(c.tbAOffJson));
-    if (doc.containsKey("tbBOnJson"))  strlcpy(c.tbBOnJson,  doc["tbBOnJson"],  sizeof(c.tbBOnJson));
-    if (doc.containsKey("tbBOffJson")) strlcpy(c.tbBOffJson, doc["tbBOffJson"], sizeof(c.tbBOffJson));
+    if (doc.containsKey("tbEnabled"))   c.tbEnabled   = doc["tbEnabled"];
+    if (doc.containsKey("tbMonitor"))   c.tbMonitor   = doc["tbMonitor"];
+    if (doc.containsKey("tbBFollowsA")) c.tbBFollowsA = doc["tbBFollowsA"];
+    if (doc.containsKey("tbAOnJson"))   strlcpy(c.tbAOnJson,  doc["tbAOnJson"],  sizeof(c.tbAOnJson));
+    if (doc.containsKey("tbAOffJson"))  strlcpy(c.tbAOffJson, doc["tbAOffJson"], sizeof(c.tbAOffJson));
+    if (doc.containsKey("tbBOnJson"))   strlcpy(c.tbBOnJson,  doc["tbBOnJson"],  sizeof(c.tbBOnJson));
+    if (doc.containsKey("tbBOffJson"))  strlcpy(c.tbBOffJson, doc["tbBOffJson"], sizeof(c.tbBOffJson));
+
+    // Multi-trigger priority
+    if (doc.containsKey("trigPriorityMode"))
+        c.trigPriorityMode = doc["trigPriorityMode"];
+    if (doc.containsKey("trigPriorityOrder")) {
+        JsonArray po = doc["trigPriorityOrder"].as<JsonArray>();
+        uint8_t i = 0;
+        for (JsonVariant v : po) {
+            if (i >= MAX_TRIGGERS) break;
+            c.trigPriorityOrder[i++] = v.as<uint8_t>();
+        }
+    }
 
     // External OSC
     if (doc.containsKey("extOscEnabled")) c.extOscEnabled = doc["extOscEnabled"];

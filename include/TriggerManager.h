@@ -29,6 +29,11 @@ public:
     float getSmoothedLevel(uint8_t n) const {
         return (n < MAX_TRIGGERS) ? _state[n].smoothed : 0.0f;
     }
+    // Activation timestamp (millis()) of the most recent ON edge; 0 if never triggered.
+    // Used by main.cpp for PRIO_NEWEST LED color selection.
+    uint32_t getTriggerStartMs(uint8_t n) const {
+        return (n < MAX_TRIGGERS) ? _state[n].startMs : 0;
+    }
 
     // Returns true if any enabled trigger is currently triggered
     bool isAnyTriggered() const;
@@ -50,6 +55,7 @@ private:
         bool     inHold         = false;
         uint32_t releaseStart   = 0;
         bool     inRelease      = false;
+        uint32_t startMs        = 0;   // millis() of most recent ON edge (for PRIO_NEWEST)
     };
 
     TState _state[MAX_TRIGGERS];

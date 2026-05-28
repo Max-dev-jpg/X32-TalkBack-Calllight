@@ -71,13 +71,18 @@ struct DeviceConfig {
     uint8_t  ledB;
 
     // ── Talkback Engine ───────────────────────────────────────────────────────
-    // Action types: clearSolo | solo | unsolo | mute | unmute | osc | out
+    // Action types: clearSolo | solo | unsolo | mute | unmute | osc | out | forceout
     bool     tbEnabled;
     uint8_t  tbMonitor;       // TB_MONITOR_A / _B / _BOTH
+    bool     tbBFollowsA;     // if true: B activates/releases together with A
     char     tbAOnJson [TB_ACTION_JSON_LEN];
     char     tbAOffJson[TB_ACTION_JSON_LEN];
     char     tbBOnJson [TB_ACTION_JSON_LEN];
     char     tbBOffJson[TB_ACTION_JSON_LEN];
+
+    // ── Multi-trigger priority ─────────────────────────────────────────────────
+    uint8_t  trigPriorityMode;                // PRIO_NEWEST / PRIO_FIXED
+    uint8_t  trigPriorityOrder[MAX_TRIGGERS]; // trigger indices in priority order (PRIO_FIXED)
 
     // ── External OSC Receiver ─────────────────────────────────────────────────
     bool     extOscEnabled;

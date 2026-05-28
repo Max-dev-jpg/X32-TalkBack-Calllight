@@ -57,6 +57,7 @@ private:
     uint32_t _lastXRemoteMs    = 0;
     uint32_t _lastResponseMs   = 0;
     uint32_t _lastReconnectMs  = 0;
+    uint32_t _lastKeepaliveMs  = 0;
 
     uint8_t  _txBuf[256];
     uint8_t  _rxBuf[1024];

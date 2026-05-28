@@ -94,7 +94,7 @@
 #define TB_PATH_B            "/-stat/talk/B"
 #define TB_CLEARSOLO_PATH    "/-action/clearsolo"
 #define TB_SOLOSW_BASE       "/-stat/solosw/"   // append 2-digit 1-based ID
-#define TB_POLL_INTERVAL_MS  100   // how often to poll talkback state
+#define MIXER_KEEPALIVE_INTERVAL_MS  4000  // /info keepalive to sustain connection when mixer is idle
 #define TB_RX_PORT           10025 // separate listen port for TalkbackEngine
 
 // Talkback monitor selection
@@ -125,6 +125,10 @@
 
 // ── Multi-trigger ─────────────────────────────────────────────────────────────
 #define MAX_TRIGGERS  4
+
+// Multi-trigger simultaneous priority modes
+#define PRIO_NEWEST  0   // most recently activated trigger's color wins
+#define PRIO_FIXED   1   // static priority order from trigPriorityOrder[]
 
 // ── Action Engine ─────────────────────────────────────────────────────────────
 // Source IDs used as bit positions in ActionEngine's output bitmask (uint8_t)

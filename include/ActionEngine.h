@@ -36,6 +36,10 @@ public:
     // Returns true if any source has an active 'out' override.
     static bool isOutputActive() { return _outputMask != 0; }
 
+    // Returns true if a 'forceout' action is active from any source.
+    // While true, ALL outputs (triggers, OSC, etc.) are suppressed.
+    static bool isForcedOff() { return _suppressMask != 0; }
+
 private:
     static void    sendInt   (const String& addr, int32_t val);
     static void    sendNoArg (const String& addr);
@@ -44,5 +48,6 @@ private:
 
     static WiFiUDP _udp;
     static bool    _udpReady;
-    static uint8_t _outputMask;   // bit per ACT_SRC_*
+    static uint8_t _outputMask;   // bit per ACT_SRC_* — set by 'out' action
+    static uint8_t _suppressMask; // bit per ACT_SRC_* — set by 'forceout'; suppresses ALL outputs
 };

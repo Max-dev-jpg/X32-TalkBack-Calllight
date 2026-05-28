@@ -12,8 +12,9 @@
 
 // ── Static member definitions ─────────────────────────────────────────────────
 WiFiUDP ActionEngine::_udp;
-bool    ActionEngine::_udpReady   = false;
-uint8_t ActionEngine::_outputMask = 0;
+bool    ActionEngine::_udpReady    = false;
+uint8_t ActionEngine::_outputMask  = 0;
+uint8_t ActionEngine::_suppressMask = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -143,6 +144,11 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
                 _outputMask &= ~(1u << srcId);
             }
             Serial.printf("[Action]   -> output src=%u %s\n", srcId, s ? "ON" : "OFF");
+
+        } else if (strcmp(t, "forceout") == 0) {
+            // Suppress ALL output sources while active — overrides triggers and OSC
+            _suppressMask |= (1u << srcId);
+            Serial.printf("[Action]   -> forceout src=%u (all outputs suppressed)\n", srcId);
         }
     }
 }
@@ -150,5 +156,6 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void ActionEngine::clearOutput(uint8_t srcId) {
-    _outputMask &= ~(1u << srcId);
+    _outputMask   &= ~(1u << srcId);
+    _suppressMask &= ~(1u << srcId);
 }

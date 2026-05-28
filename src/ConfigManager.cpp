@@ -84,10 +84,15 @@ void ConfigManager::applyDefaults()
     // Talkback Engine
     _cfg.tbEnabled    = false;
     _cfg.tbMonitor    = TB_MONITOR_A;
+    _cfg.tbBFollowsA  = false;
     _cfg.tbAOnJson[0]  = '\0';
     _cfg.tbAOffJson[0] = '\0';
     _cfg.tbBOnJson[0]  = '\0';
     _cfg.tbBOffJson[0] = '\0';
+
+    // Multi-trigger priority
+    _cfg.trigPriorityMode = PRIO_NEWEST;
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) _cfg.trigPriorityOrder[n] = n;
 
     // External OSC
     _cfg.extOscEnabled = false;

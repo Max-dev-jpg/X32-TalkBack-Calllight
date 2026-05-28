@@ -99,6 +99,7 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
     // ── Edge actions ──────────────────────────────────────────────────────────
     // ACT_SRC_TRIGGER_0 = 0 … ACT_SRC_TRIGGER_3 = 3
     if (s.triggered && !prevTriggered) {
+        s.startMs = now;   // record activation time for PRIO_NEWEST
         ActionEngine::execute(c.onJson, n);
     }
     if (!s.triggered && prevTriggered) {

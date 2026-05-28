@@ -53,7 +53,6 @@ private:
     bool     _stateA  = false;
     bool     _stateB  = false;
 
-    uint32_t _lastPollMs    = 0;
     uint32_t _lastXRemoteMs = 0;
 
     uint8_t  _txBuf[256];

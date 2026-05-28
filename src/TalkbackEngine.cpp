@@ -62,6 +62,12 @@ void TalkbackEngine::onTalkbackOn(bool isA) {
     Serial.printf("[TB] TALKBACK %s ON\n", isA ? "A" : "B");
     ActionEngine::execute(isA ? Config.tbAOnJson : Config.tbBOnJson,
                           isA ? ACT_SRC_TB_A    : ACT_SRC_TB_B);
+    // B follows A: also activate B when A activates
+    if (isA && Config.tbBFollowsA && !_stateB) {
+        _stateB = true;
+        Serial.println("[TB] TALKBACK B ON (follows A)");
+        ActionEngine::execute(Config.tbBOnJson, ACT_SRC_TB_B);
+    }
 }
 
 void TalkbackEngine::onTalkbackOff(bool isA) {
@@ -70,6 +76,13 @@ void TalkbackEngine::onTalkbackOff(bool isA) {
                           isA ? ACT_SRC_TB_A      : ACT_SRC_TB_B);
     // Clear this button's output override regardless of what the action list says
     ActionEngine::clearOutput(isA ? ACT_SRC_TB_A : ACT_SRC_TB_B);
+    // B follows A: also deactivate B when A deactivates
+    if (isA && Config.tbBFollowsA && _stateB) {
+        _stateB = false;
+        Serial.println("[TB] TALKBACK B OFF (follows A)");
+        ActionEngine::execute(Config.tbBOffJson, ACT_SRC_TB_B);
+        ActionEngine::clearOutput(ACT_SRC_TB_B);
+    }
 }
 
 // ── External simulation (from OSC receiver) ───────────────────────────────────
@@ -125,19 +138,11 @@ void TalkbackEngine::loop() {
 
     uint32_t now = millis();
 
-    // Renew /xremote so the X32/M32 pushes changes to us
+    // Renew /xremote so the X32/M32 pushes talkback state changes to us automatically.
+    // No explicit polling needed — /xremote subscription delivers /-stat/talk/A|B on change.
     if (now - _lastXRemoteMs >= XREMOTE_INTERVAL_MS) {
         sendNoArg("/xremote");
         _lastXRemoteMs = now;
-    }
-
-    // Poll talkback state
-    if (now - _lastPollMs >= TB_POLL_INTERVAL_MS) {
-        if (Config.tbMonitor == TB_MONITOR_A || Config.tbMonitor == TB_MONITOR_BOTH)
-            sendQuery(TB_PATH_A);
-        if (Config.tbMonitor == TB_MONITOR_B || Config.tbMonitor == TB_MONITOR_BOTH)
-            sendQuery(TB_PATH_B);
-        _lastPollMs = now;
     }
 
     processIncoming();

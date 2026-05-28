@@ -133,13 +133,14 @@ const CH_DEFS = [
 ];
 
 const ACT_DEFS = [
-  { t:'clearSolo', label:'Clear All Solos'    },
-  { t:'solo',      label:'Solo Channel',       hasCh:true  },
-  { t:'unsolo',    label:'Unsolo Channel',     hasCh:true  },
-  { t:'mute',      label:'Mute Channel',       hasCh:true  },
-  { t:'unmute',    label:'Unmute Channel',     hasCh:true  },
-  { t:'osc',       label:'Custom OSC Command', hasOsc:true },
-  { t:'out',       label:'Force Call Light',   hasOut:true },
+  { t:'clearSolo', label:'Clear All Solos'                         },
+  { t:'solo',      label:'Solo Channel',              hasCh:true   },
+  { t:'unsolo',    label:'Unsolo Channel',            hasCh:true   },
+  { t:'mute',      label:'Mute Channel',              hasCh:true   },
+  { t:'unmute',    label:'Unmute Channel',            hasCh:true   },
+  { t:'osc',       label:'Custom OSC Command',        hasOsc:true  },
+  { t:'out',       label:'Call Light (this source)',  hasOut:true  },
+  { t:'forceout',  label:'Force ALL Outputs OFF (overrides triggers)' },
 ];
 
 function safeParseJSON(s) {
@@ -191,6 +192,14 @@ function addAction(lk, type) {
 
 function removeAction(lk, idx) {
   getActionList(lk).splice(idx, 1);
+  renderActionList(lk);
+}
+
+function moveAction(lk, idx, dir) {
+  const list   = getActionList(lk);
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= list.length) return;
+  [list[idx], list[newIdx]] = [list[newIdx], list[idx]];
   renderActionList(lk);
 }
 
@@ -247,10 +256,17 @@ function renderActionCard(a, lk, i) {
       </select>
     </div>`;
   }
+  const listLen = getActionList(lk).length;
   return `<div class="action-card">
     <div class="action-card-hdr">
       <span class="act-label">${def.label}</span>
-      <button type="button" class="act-del" onclick="removeAction('${lk}',${i})">&#xd7;</button>
+      <div class="act-hdr-btns">
+        <button type="button" class="act-mv btn-xs" onclick="moveAction('${lk}',${i},-1)"
+          title="Move up"   ${i === 0          ? 'disabled' : ''}>↑</button>
+        <button type="button" class="act-mv btn-xs" onclick="moveAction('${lk}',${i},+1)"
+          title="Move down" ${i === listLen-1  ? 'disabled' : ''}>↓</button>
+        <button type="button" class="act-del" onclick="removeAction('${lk}',${i})">&#xd7;</button>
+      </div>
     </div>
     ${params}
   </div>`;
@@ -265,12 +281,98 @@ function renderActionList(lk) {
     : '<div class="act-empty">No actions — nothing will be sent.</div>';
 }
 
+// ── Priority state ────────────────────────────────────────────────────────────
+let trigPriorityOrder = [0, 1, 2, 3];
+
+function onPrioModeChange() {
+  const mode = parseInt(document.getElementById('trig-prio-mode').value || '0');
+  const wrap = document.getElementById('trig-prio-order-wrap');
+  if (wrap) wrap.style.display = (mode === 1) ? '' : 'none';
+}
+
+function renderPrioList() {
+  const el = document.getElementById('trig-prio-list');
+  if (!el) return;
+  el.innerHTML = trigPriorityOrder.map((n, i) =>
+    `<div class="prio-item">
+      <span class="prio-label">Trigger ${n + 1}</span>
+      <div class="prio-btns">
+        <button type="button" class="btn-secondary btn-xs"
+          onclick="movePrioItem(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="btn-secondary btn-xs"
+          onclick="movePrioItem(${i},1)"  ${i === trigPriorityOrder.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>
+    </div>`
+  ).join('');
+}
+
+function movePrioItem(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= trigPriorityOrder.length) return;
+  [trigPriorityOrder[idx], trigPriorityOrder[newIdx]] =
+    [trigPriorityOrder[newIdx], trigPriorityOrder[idx]];
+  renderPrioList();
+}
+
+// ── OSC Monitor graph ─────────────────────────────────────────────────────────
+const MON_HIST_SIZE = 120;
+const MON_HIST = Array.from({ length: NUM_TRIGGERS }, () => []);
+const monViewMode = Array(NUM_TRIGGERS).fill('log');
+
+function toggleMonitorGraph(n) {
+  monViewMode[n] = (monViewMode[n] === 'log') ? 'graph' : 'log';
+  const log    = document.getElementById('mon-log-' + n);
+  const canvas = document.getElementById('mon-canvas-' + n);
+  const btn    = document.getElementById('mon-view-btn-' + n);
+  const inGraph = (monViewMode[n] === 'graph');
+  if (log)    log.style.display    = inGraph ? 'none' : '';
+  if (canvas) canvas.style.display = inGraph ? ''     : 'none';
+  if (btn)    btn.textContent      = inGraph ? '📋 Log' : '📊 Graph';
+  if (inGraph && log && log.classList.contains('active')) {
+    if (canvas) canvas.classList.add('active');
+    drawMonitorGraph(n);
+  }
+}
+
+function drawMonitorGraph(n) {
+  const canvas = document.getElementById('mon-canvas-' + n);
+  if (!canvas || canvas.style.display === 'none') return;
+  const hist = MON_HIST[n];
+  const ctx  = canvas.getContext('2d');
+  // Match rendered size for crisp pixels
+  canvas.width  = canvas.clientWidth  || 200;
+  canvas.height = canvas.clientHeight || 80;
+  const W = canvas.width, H = canvas.height;
+
+  ctx.fillStyle = '#0d0d0d';
+  ctx.fillRect(0, 0, W, H);
+
+  // Horizontal grid lines at 0.25 / 0.5 / 0.75
+  ctx.strokeStyle = '#252525'; ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1.0].forEach(v => {
+    const y = Math.round(H - v * H) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  });
+
+  if (hist.length < 2) return;
+
+  ctx.strokeStyle = '#00e5a0'; ctx.lineWidth = 1.5; ctx.beginPath();
+  hist.forEach((v, i) => {
+    const x = (i / (hist.length - 1)) * W;
+    const y = H - v * H;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
 // ── Load config → populate forms ──────────────────────────────────────────────
 function loadTBConfig(c) {
-  const tbEn = document.getElementById('tb-enabled');
+  const tbEn  = document.getElementById('tb-enabled');
   const tbMon = document.getElementById('tb-monitor');
-  if (tbEn)  tbEn.checked = !!c.tbEnabled;
-  if (tbMon) tbMon.value  = c.tbMonitor ?? 0;
+  const tbBfA = document.getElementById('tb-b-follows-a');
+  if (tbEn)  tbEn.checked  = !!c.tbEnabled;
+  if (tbMon) tbMon.value   = c.tbMonitor ?? 0;
+  if (tbBfA) tbBfA.checked = !!c.tbBFollowsA;
 
   tbState.aOn  = safeParseJSON(c.tbAOnJson);
   tbState.aOff = safeParseJSON(c.tbAOffJson);
@@ -368,10 +470,15 @@ function collectTriggers() {
 
 // ── Form submit handlers ──────────────────────────────────────────────────────
 
-// Trigger form — all 4 triggers in one POST
+// Trigger form — all 4 triggers + priority settings in one POST
 document.getElementById('form-trigger').addEventListener('submit', async e => {
   e.preventDefault();
-  const data = { triggers: collectTriggers() };
+  const prioMode = parseInt(document.getElementById('trig-prio-mode').value || '0');
+  const data = {
+    triggers:           collectTriggers(),
+    trigPriorityMode:   prioMode,
+    trigPriorityOrder:  [...trigPriorityOrder],
+  };
   await apiPost('/api/config', data);
   setTimeout(loadConfig, 800);
 });
@@ -379,13 +486,15 @@ document.getElementById('form-trigger').addEventListener('submit', async e => {
 // Talkback form
 document.getElementById('form-talkback').addEventListener('submit', async e => {
   e.preventDefault();
+  const bfA = document.getElementById('tb-b-follows-a');
   const data = {
-    tbEnabled:  document.getElementById('tb-enabled').checked,
-    tbMonitor:  parseInt(document.getElementById('tb-monitor').value || '0'),
-    tbAOnJson:  JSON.stringify(tbState.aOn),
-    tbAOffJson: JSON.stringify(tbState.aOff),
-    tbBOnJson:  JSON.stringify(tbState.bOn),
-    tbBOffJson: JSON.stringify(tbState.bOff),
+    tbEnabled:   document.getElementById('tb-enabled').checked,
+    tbMonitor:   parseInt(document.getElementById('tb-monitor').value || '0'),
+    tbBFollowsA: bfA ? bfA.checked : false,
+    tbAOnJson:   JSON.stringify(tbState.aOn),
+    tbAOffJson:  JSON.stringify(tbState.aOff),
+    tbBOnJson:   JSON.stringify(tbState.bOn),
+    tbBOffJson:  JSON.stringify(tbState.bOff),
   };
   await apiPost('/api/config', data);
   setTimeout(loadConfig, 800);
@@ -531,6 +640,15 @@ async function loadConfig() {
     updateOscVisibility();
     loadTBConfig(c);
     loadTriggerConfig(c.triggers);
+
+    // Multi-trigger priority
+    const prioModeEl = document.getElementById('trig-prio-mode');
+    if (prioModeEl) prioModeEl.value = c.trigPriorityMode ?? 0;
+    if (Array.isArray(c.trigPriorityOrder) && c.trigPriorityOrder.length === NUM_TRIGGERS) {
+      trigPriorityOrder = [...c.trigPriorityOrder];
+    }
+    renderPrioList();
+    onPrioModeChange();
   } catch(e) {
     console.warn('Config load failed:', e);
   }
@@ -709,8 +827,10 @@ async function toggleMonitor() {
   if (monitorRunning) {
     btn.textContent = '⏹ Stop Monitor'; btn.className = 'btn-warning';
     for (let n = 0; n < NUM_TRIGGERS; n++) {
-      const log = document.getElementById('mon-log-' + n);
-      if (log) log.classList.add('active');
+      const log    = document.getElementById('mon-log-' + n);
+      const canvas = document.getElementById('mon-canvas-' + n);
+      if (log)    log.classList.add('active');
+      if (canvas) canvas.classList.add('active');
     }
   } else {
     btn.textContent = '▶ Start Monitor'; btn.className = 'btn-primary';
@@ -753,6 +873,11 @@ function updateOSCMonitor(d) {
     setText('mon-min-' + n, st.min.toFixed(4));
     setText('mon-max-' + n, st.max.toFixed(4));
     setText('mon-avg-' + n, (st.sum / st.count).toFixed(4));
+
+    // History ring-buffer for graph view
+    MON_HIST[n].push(val);
+    if (MON_HIST[n].length > MON_HIST_SIZE) MON_HIST[n].shift();
+    if (monViewMode[n] === 'graph') drawMonitorGraph(n);
 
     const log = document.getElementById('mon-log-' + n);
     if (!log || !log.classList.contains('active')) return;

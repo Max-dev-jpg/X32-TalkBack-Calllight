@@ -604,6 +604,21 @@
       </div>
     </div><!-- /trig-sub-3 -->
 
+    <fieldset style="margin-top:1rem">
+      <legend>Multi-Trigger Priority</legend>
+      <p class="fieldset-hint">When multiple triggers are active simultaneously, this controls which trigger's LED color takes effect. The call light itself is always ON if any trigger is active.</p>
+      <label>Priority Mode
+        <select id="trig-prio-mode" onchange="onPrioModeChange()">
+          <option value="0">Newest wins — most recently activated trigger's color</option>
+          <option value="1">Fixed priority list — highest in list wins</option>
+        </select>
+      </label>
+      <div id="trig-prio-order-wrap" style="display:none;margin-top:0.6rem">
+        <small style="display:block;margin-bottom:0.5rem;color:var(--text-dim)">Reorder with ↑↓ — top = highest priority.</small>
+        <div id="trig-prio-list" class="prio-list"></div>
+      </div>
+    </fieldset>
+
     <div class="form-actions" style="margin-top:1rem">
       <button type="submit" class="btn-primary">Save &amp; Apply All Triggers</button>
     </div>
@@ -777,6 +792,10 @@
             <option value="1">Talkback B only</option>
             <option value="2">Both A &amp; B</option>
           </select>
+        </label>
+        <label class="toggle-row" style="margin-top:0.85rem">
+          <span>Talk B follows Talk A — B activates &amp; deactivates together with A</span>
+          <input type="checkbox" id="tb-b-follows-a">
         </label>
       </div>
     </fieldset>
@@ -975,7 +994,11 @@
         <div class="level-bar" id="mon-bar-0"></div>
       </div>
       <div class="monitor-log" id="mon-log-0"></div>
-      <button class="btn-secondary btn-xs" onclick="clearMonitor(0)" style="margin-top:0.4rem">Clear</button>
+      <canvas id="mon-canvas-0" class="monitor-canvas"></canvas>
+      <div class="mon-btn-row">
+        <button class="btn-secondary btn-xs" onclick="clearMonitor(0)">Clear</button>
+        <button class="btn-secondary btn-xs" id="mon-view-btn-0" onclick="toggleMonitorGraph(0)">&#128202; Graph</button>
+      </div>
     </div>
 
     <div class="monitor-panel">
@@ -995,7 +1018,11 @@
         <div class="level-bar" id="mon-bar-1"></div>
       </div>
       <div class="monitor-log" id="mon-log-1"></div>
-      <button class="btn-secondary btn-xs" onclick="clearMonitor(1)" style="margin-top:0.4rem">Clear</button>
+      <canvas id="mon-canvas-1" class="monitor-canvas"></canvas>
+      <div class="mon-btn-row">
+        <button class="btn-secondary btn-xs" onclick="clearMonitor(1)">Clear</button>
+        <button class="btn-secondary btn-xs" id="mon-view-btn-1" onclick="toggleMonitorGraph(1)">&#128202; Graph</button>
+      </div>
     </div>
 
     <div class="monitor-panel">
@@ -1015,7 +1042,11 @@
         <div class="level-bar" id="mon-bar-2"></div>
       </div>
       <div class="monitor-log" id="mon-log-2"></div>
-      <button class="btn-secondary btn-xs" onclick="clearMonitor(2)" style="margin-top:0.4rem">Clear</button>
+      <canvas id="mon-canvas-2" class="monitor-canvas"></canvas>
+      <div class="mon-btn-row">
+        <button class="btn-secondary btn-xs" onclick="clearMonitor(2)">Clear</button>
+        <button class="btn-secondary btn-xs" id="mon-view-btn-2" onclick="toggleMonitorGraph(2)">&#128202; Graph</button>
+      </div>
     </div>
 
     <div class="monitor-panel">
@@ -1035,7 +1066,11 @@
         <div class="level-bar" id="mon-bar-3"></div>
       </div>
       <div class="monitor-log" id="mon-log-3"></div>
-      <button class="btn-secondary btn-xs" onclick="clearMonitor(3)" style="margin-top:0.4rem">Clear</button>
+      <canvas id="mon-canvas-3" class="monitor-canvas"></canvas>
+      <div class="mon-btn-row">
+        <button class="btn-secondary btn-xs" onclick="clearMonitor(3)">Clear</button>
+        <button class="btn-secondary btn-xs" id="mon-view-btn-3" onclick="toggleMonitorGraph(3)">&#128202; Graph</button>
+      </div>
     </div>
 
   </div>

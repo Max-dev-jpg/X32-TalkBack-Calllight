@@ -118,8 +118,15 @@ void MixerConnection::processIncoming() {
     OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)read);
     if (!msg.valid) return;
 
+    // Any valid OSC packet from the mixer keeps the connection alive —
+    // including /info keepalive responses, xremote-pushed changes, etc.
+    _lastResponseMs = millis();
+    if (!_connected) {
+        _connected = true;
+        Serial.println("[Mixer] Connected.");
+    }
+
     // Match the message address against each trigger's resolved path / alias
-    bool matched = false;
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         if (_triggerPaths[n].length() == 0) continue;
         if (msg.address != _triggerPaths[n])  continue;
@@ -140,15 +147,6 @@ void MixerConnection::processIncoming() {
 
         level = constrain(level, 0.0f, 1.0f);
         _triggerLevels[n] = level;
-        matched = true;
-    }
-
-    if (matched) {
-        _lastResponseMs = millis();
-        if (!_connected) {
-            _connected = true;
-            Serial.println("[Mixer] Connected.");
-        }
     }
 }
 
@@ -169,6 +167,19 @@ void MixerConnection::loop() {
         sendMeterSubscriptions();
         sendFaderMuteQueries();   // initial sync; X32 pushes changes between renewals
         _lastXRemoteMs = now;
+    }
+
+    // Lightweight keepalive: /info query every MIXER_KEEPALIVE_INTERVAL_MS.
+    // Ensures the connection health indicator stays current even when the mixer
+    // is completely idle (no fader movement, no meter subscriptions active).
+    if (now - _lastKeepaliveMs >= MIXER_KEEPALIVE_INTERVAL_MS) {
+        if (_udpOpen) {
+            size_t len = OSCHandler::buildQuery("/info", _txBuf, sizeof(_txBuf));
+            _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+            _udp.write(_txBuf, len);
+            _udp.endPacket();
+        }
+        _lastKeepaliveMs = now;
     }
 
     if (_udpOpen) processIncoming();

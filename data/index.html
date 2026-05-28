@@ -607,6 +607,7 @@
     <fieldset style="margin-top:1rem">
       <legend>Multi-Trigger Priority</legend>
       <p class="fieldset-hint">When multiple triggers are active simultaneously, this controls which trigger's LED color takes effect. The call light itself is always ON if any trigger is active.</p>
+      <p class="fieldset-hint">Important: Priorities only work for Triggers that have a custom color set in the Output Tab. Triggers with default color always have lowest priority.</p>
       <label>Priority Mode
         <select id="trig-prio-mode" onchange="onPrioModeChange()">
           <option value="0">Newest wins — most recently activated trigger's color</option>

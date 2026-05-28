@@ -33,23 +33,24 @@ void setup() {
     // ── 1. Configuration ──────────────────────────────────────────────────────
     ConfigManager::instance().begin();
 
-    // ── 2. Network ────────────────────────────────────────────────────────────
+    // ── 2. LED strip ─────────────────────────────────────────────────────────
+    // Turn the strip off immediately after boot, before network or mixer startup.
+    LEDController::instance().begin();
+
+    // ── 3. Network ────────────────────────────────────────────────────────────
     NetworkManager::instance().begin();
 
-    // ── 3. Web server (LittleFS + REST + WebSocket) ───────────────────────────
+    // ── 4. Web server (LittleFS + REST + WebSocket) ───────────────────────────
     WebServerManager::instance().begin();
 
-    // ── 4. Mixer OSC connection ───────────────────────────────────────────────
+    // ── 5. Mixer OSC connection ───────────────────────────────────────────────
     MixerConnection::instance().begin();
 
-    // ── 5. Multi-trigger state machines ───────────────────────────────────────
+    // ── 6. Multi-trigger state machines ───────────────────────────────────────
     TriggerManager::instance().begin();
 
-    // ── 6. GPIO output ────────────────────────────────────────────────────────
+    // ── 7. GPIO output ────────────────────────────────────────────────────────
     OutputController::instance().begin();
-
-    // ── 7. LED strip ──────────────────────────────────────────────────────────
-    LEDController::instance().begin();
 
     // ── 8. Talkback Engine ────────────────────────────────────────────────────
     TalkbackEngine::instance().begin();

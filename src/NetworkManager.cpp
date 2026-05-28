@@ -8,26 +8,26 @@
 #include <Arduino.h>
 
 void NetworkManager::begin() {
-    Serial.println("[Network] Initialising...");
+    DBG_PRINTLN("[Network] Initialising...");
     _staConnected = false;
 
     // Boot strategy: Connect to known Wi-Fi or fall back to Access Point
     if (Config.wifiSSID[0] != '\0') {
         startSTA();
     } else {
-        Serial.println("[Network] No credentials found. Starting AP.");
+        DBG_PRINTLN("[Network] No credentials found. Starting AP.");
         startAP();
     }
 
     setupMDNS();
     setupOTA();
-    Serial.println("[Network] Ready.");
+    DBG_PRINTLN("[Network] Ready.");
 }
 
 // ── Access Point Mode ─────────────────────────────────────────────────────────────
 
 void NetworkManager::startAP() {
-    Serial.println("[Network] Entering AP Fallback mode...");
+    DBG_PRINTLN("[Network] Entering AP Fallback mode...");
     
     // Stop active connection attempts to stabilize the radio chip
     WiFi.disconnect(); 
@@ -40,11 +40,11 @@ void NetworkManager::startAP() {
 
     bool ok = WiFi.softAP(DEFAULT_AP_SSID, pw, AP_CHANNEL, 0, AP_MAX_CONNECTIONS);
     if (ok) {
-        Serial.printf("[Network] AP Active (STABLE) – SSID: %s  IP: %s\n",
+        DBG_PRINTF("[Network] AP Active (STABLE) – SSID: %s  IP: %s\n",
                       DEFAULT_AP_SSID,
                       WiFi.softAPIP().toString().c_str());
     } else {
-        Serial.println("[Network] AP start FAILED!");
+        DBG_PRINTLN("[Network] AP start FAILED!");
     }
 
     _lastReconnectAttempt = millis();
@@ -53,7 +53,7 @@ void NetworkManager::startAP() {
 // ── Station Mode ───────────────────────────────────────────────────────────────────
 
 void NetworkManager::startSTA() {
-    Serial.printf("[Network] Entering STA mode. Connecting to: %s\n", Config.wifiSSID);
+    DBG_PRINTF("[Network] Entering STA mode. Connecting to: %s\n", Config.wifiSSID);
     
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true); // Let the driver handle minor reconnects
@@ -86,9 +86,9 @@ void NetworkManager::startSTA() {
 void NetworkManager::setupMDNS() {
     if (MDNS.begin(MDNS_HOSTNAME)) {
         MDNS.addService("http", "tcp", WEB_SERVER_PORT);
-        Serial.printf("[Network] mDNS: http://%s.local\n", MDNS_HOSTNAME);
+        DBG_PRINTF("[Network] mDNS: http://%s.local\n", MDNS_HOSTNAME);
     } else {
-        Serial.println("[Network] mDNS start failed.");
+        DBG_PRINTLN("[Network] mDNS start failed.");
     }
 }
 
@@ -103,24 +103,24 @@ void NetworkManager::setupOTA() {
 
     ArduinoOTA.onStart([]() {
         String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
-        Serial.println("[OTA] Starting update: " + type);
+        DBG_PRINTLN("[OTA] Starting update: " + type);
     });
     ArduinoOTA.onEnd([]() {
-        Serial.println("\n[OTA] Done. Rebooting...");
+        DBG_PRINTLN("\n[OTA] Done. Rebooting...");
     });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("[OTA] %u%%\r", progress * 100 / total);
+        DBG_PRINTF("[OTA] %u%%\r", progress * 100 / total);
     });
     ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("[OTA] Error[%u]: ", error);
+        DBG_PRINTF("[OTA] Error[%u]: ", error);
         const char* msg[] = {"Auth Failed","Begin Failed","Connect Failed",
                              "Receive Failed","End Failed"};
-        if (error < 5) Serial.println(msg[error]);
+        if (error < 5) DBG_PRINTLN(msg[error]);
     });
 
     ArduinoOTA.begin();
     _otaInitialised = true;
-    Serial.println("[Network] OTA ready.");
+    DBG_PRINTLN("[Network] OTA ready.");
 }
 
 // ── Main loop ─────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ void NetworkManager::loop() {
             if (WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
                 if (!_staConnected) {
                     _staConnected = true;
-                    Serial.printf("[Network] STA connected  IP: %s  RSSI: %d dBm\n",
+                    DBG_PRINTF("[Network] STA connected  IP: %s  RSSI: %d dBm\n",
                                   WiFi.localIP().toString().c_str(), WiFi.RSSI());
                     MDNS.begin(MDNS_HOSTNAME); 
                 }
@@ -152,13 +152,13 @@ void NetworkManager::loop() {
             // Handle sudden connection drop
             if (_staConnected) {
                 _staConnected = false;
-                Serial.println("[Network] STA connection lost!");
+                DBG_PRINTLN("[Network] STA connection lost!");
                 _lastReconnectAttempt = millis(); 
             }
 
             // Fall back to AP mode if connection cannot be re-established
             if (millis() - _lastReconnectAttempt > WIFI_RECONNECT_STA_INTERVAL_MS) {
-                Serial.println("[Network] Connection timed out. Switching to AP Fallback...");
+                DBG_PRINTLN("[Network] Connection timed out. Switching to AP Fallback...");
                 startAP();
             }
         }
@@ -168,7 +168,7 @@ void NetworkManager::loop() {
     else if (currentMode == WIFI_AP_STA) {
         if (currentStatus == WL_CONNECTED) {
             // Target network found! Shut down AP and switch back to pure STA
-            Serial.println("[Network] Target network recovered! Disabling AP.");
+            DBG_PRINTLN("[Network] Target network recovered! Disabling AP.");
             WiFi.mode(WIFI_STA); 
             _staConnected = false; 
         } 
@@ -180,7 +180,7 @@ void NetworkManager::loop() {
             // Trigger a new async background scan after interval timeout
             if (scanResult == WIFI_SCAN_FAILED) { 
                 if (Config.wifiSSID[0] != '\0' && (millis() - _lastReconnectAttempt > scanInterval)) {
-                    Serial.printf("[Network] AP Active. Starting background scan (Interval: %lu ms)...\n", scanInterval);
+                    DBG_PRINTF("[Network] AP Active. Starting background scan (Interval: %lu ms)...\n", scanInterval);
                     WiFi.scanNetworks(true, false); 
                     _lastReconnectAttempt = millis();
                 }
@@ -196,11 +196,11 @@ void NetworkManager::loop() {
                 }
                 
                 if (foundTarget) {
-                    Serial.println("[Network] Target SSID detected! Switching to STA mode...");
+                    DBG_PRINTLN("[Network] Target SSID detected! Switching to STA mode...");
                     WiFi.scanDelete(); 
                     startSTA();
                 } else {
-                    Serial.println("[Network] Target SSID not found in scan. Keeping AP stable.");
+                    DBG_PRINTLN("[Network] Target SSID not found in scan. Keeping AP stable.");
                     WiFi.scanDelete();
                 }
             }
@@ -230,11 +230,11 @@ bool NetworkManager::hasConfigChanged() {
 // ── apply new configurations  ─────────────────────────────────────────────────────────────
 void NetworkManager::applyConfig() {
     if (!hasConfigChanged()) {
-        Serial.println("[Network] No changes in network config detected. Skipping reconfiguration.");
+        DBG_PRINTLN("[Network] No changes in network config detected. Skipping reconfiguration.");
         return; 
     }
 
-    Serial.println("[Network] Re-evaluating connection...");
+    DBG_PRINTLN("[Network] Re-evaluating connection...");
     
     WiFi.disconnect(true);
     delay(100);

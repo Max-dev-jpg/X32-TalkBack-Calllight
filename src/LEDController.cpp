@@ -24,7 +24,7 @@ void LEDController::begin() {
     _initPin     = pin;
     _initCount   = count;
 
-    Serial.printf("[LED] NeoPixel init: pin=%d  count=%d  brightness=%d\n",
+    DBG_PRINTF("[LED] NeoPixel init: pin=%d  count=%d  brightness=%d\n",
                   pin, count, Config.ledBrightness);
 }
 

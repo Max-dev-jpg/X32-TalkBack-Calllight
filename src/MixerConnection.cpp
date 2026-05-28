@@ -12,16 +12,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 void MixerConnection::begin() {
-    Serial.println("[Mixer] Initialising UDP...");
+    DBG_PRINTLN("[Mixer] Initialising UDP...");
     if (_udpOpen) {
         _udp.stop();
         _udpOpen = false;
     }
     if (_udp.begin(Config.oscRxPort)) {
         _udpOpen = true;
-        Serial.printf("[Mixer] Listening on UDP port %d\n", Config.oscRxPort);
+        DBG_PRINTF("[Mixer] Listening on UDP port %d\n", Config.oscRxPort);
     } else {
-        Serial.println("[Mixer] UDP begin FAILED!");
+        DBG_PRINTLN("[Mixer] UDP begin FAILED!");
     }
 
     rebuildPaths();
@@ -41,7 +41,7 @@ void MixerConnection::begin() {
 }
 
 void MixerConnection::reconnect() {
-    Serial.println("[Mixer] Reconnecting...");
+    DBG_PRINTLN("[Mixer] Reconnecting...");
     if (_udpOpen) { _udp.stop(); _udpOpen = false; }
     _lastXRemoteMs  = 0;   // force immediate xremote + queries on next loop()
     _lastResponseMs = 0;
@@ -115,7 +115,7 @@ void MixerConnection::sendMeterSubscriptions() {
         _udp.write(_txBuf, len);
         _udp.endPacket();
 
-        Serial.printf("[Mixer] /batchsubscribe %s ch=%d\n",
+        DBG_PRINTF("[Mixer] /batchsubscribe %s ch=%d\n",
                       alias.c_str(), (int)chId);
     }
 }
@@ -131,7 +131,7 @@ void MixerConnection::processIncoming() {
         IPAddress fromIP = _udp.remoteIP();
         if (fromIP != expectedIP) {
             if (millis() - _lastIgnoredPacketMs > 15000) {
-                Serial.printf("[Mixer] Ignoring UDP packet from %s\n", fromIP.toString().c_str());
+                DBG_PRINTF("[Mixer] Ignoring UDP packet from %s\n", fromIP.toString().c_str());
                 _lastIgnoredPacketMs = millis();
             }
             int discard = _udp.read(_rxBuf, sizeof(_rxBuf));
@@ -145,7 +145,7 @@ void MixerConnection::processIncoming() {
         OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)read);
         if (!msg.valid) {
             if (millis() - _lastInvalidPacketMs > 15000) {
-                Serial.printf("[Mixer] Invalid OSC packet received from mixer %s\n",
+                DBG_PRINTF("[Mixer] Invalid OSC packet received from mixer %s\n",
                               fromIP.toString().c_str());
                 _lastInvalidPacketMs = millis();
             }
@@ -157,7 +157,7 @@ void MixerConnection::processIncoming() {
         _lastResponseMs = millis();
         if (!_connected) {
             _connected = true;
-            Serial.printf("[Mixer] Connected from %s addr=%s type=%c\n",
+            DBG_PRINTF("[Mixer] Connected from %s addr=%s type=%c\n",
                           fromIP.toString().c_str(), msg.address.c_str(), msg.typeTag);
         }
 
@@ -228,7 +228,7 @@ void MixerConnection::loop() {
     // Timeout
     if (_connected && (now - _lastResponseMs > MIXER_TIMEOUT_MS)) {
         _connected = false;
-        Serial.printf("[Mixer] Timeout — connection lost after %u ms. lastResponse=%u now=%u\n",
+        DBG_PRINTF("[Mixer] Timeout — connection lost after %u ms. lastResponse=%u now=%u\n",
                       (unsigned)(now - _lastResponseMs), (unsigned)_lastResponseMs, (unsigned)now);
     }
 

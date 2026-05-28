@@ -28,9 +28,9 @@ void TalkbackEngine::begin() {
 
     if (_udp.begin(TB_RX_PORT)) {
         _udpOpen = true;
-        Serial.printf("[TB] UDP listening on port %d\n", TB_RX_PORT);
+        DBG_PRINTF("[TB] UDP listening on port %d\n", TB_RX_PORT);
     } else {
-        Serial.println("[TB] UDP begin failed!");
+        DBG_PRINTLN("[TB] UDP begin failed!");
     }
 }
 
@@ -59,19 +59,19 @@ void TalkbackEngine::sendNoArg(const String& address) {
 // ── State-change handlers ─────────────────────────────────────────────────────
 
 void TalkbackEngine::onTalkbackOn(bool isA) {
-    Serial.printf("[TB] TALKBACK %s ON\n", isA ? "A" : "B");
+    DBG_PRINTF("[TB] TALKBACK %s ON\n", isA ? "A" : "B");
     ActionEngine::execute(isA ? Config.tbAOnJson : Config.tbBOnJson,
                           isA ? ACT_SRC_TB_A    : ACT_SRC_TB_B);
     // B follows A: also activate B when A activates
     if (isA && Config.tbBFollowsA && !_stateB) {
         _stateB = true;
-        Serial.println("[TB] TALKBACK B ON (follows A)");
+        DBG_PRINTLN("[TB] TALKBACK B ON (follows A)");
         ActionEngine::execute(Config.tbBOnJson, ACT_SRC_TB_B);
     }
 }
 
 void TalkbackEngine::onTalkbackOff(bool isA) {
-    Serial.printf("[TB] TALKBACK %s OFF\n", isA ? "A" : "B");
+    DBG_PRINTF("[TB] TALKBACK %s OFF\n", isA ? "A" : "B");
     ActionEngine::execute(isA ? Config.tbAOffJson : Config.tbBOffJson,
                           isA ? ACT_SRC_TB_A      : ACT_SRC_TB_B);
     // Clear this button's output override regardless of what the action list says
@@ -79,7 +79,7 @@ void TalkbackEngine::onTalkbackOff(bool isA) {
     // B follows A: also deactivate B when A deactivates
     if (isA && Config.tbBFollowsA && _stateB) {
         _stateB = false;
-        Serial.println("[TB] TALKBACK B OFF (follows A)");
+        DBG_PRINTLN("[TB] TALKBACK B OFF (follows A)");
         ActionEngine::execute(Config.tbBOffJson, ACT_SRC_TB_B);
         ActionEngine::clearOutput(ACT_SRC_TB_B);
     }

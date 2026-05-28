@@ -20,15 +20,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 void setup() {
-    Serial.begin(SERIAL_BAUD);
+    DBG_BEGIN(SERIAL_BAUD);
     delay(200);
 
-    Serial.println("\n========================================");
+    DBG_PRINTLN("\n========================================");
     Serial.printf ("  TalkBack CallLight  v%s\n", FIRMWARE_VERSION);
     Serial.printf ("  ESP32 chip: %s  cores: %d\n",
                    ESP.getChipModel(), ESP.getChipCores());
     Serial.printf ("  Free heap: %u bytes\n", ESP.getFreeHeap());
-    Serial.println("========================================\n");
+    DBG_PRINTLN("========================================\n");
 
     // ── 1. Configuration ──────────────────────────────────────────────────────
     ConfigManager::instance().begin();
@@ -60,7 +60,7 @@ void setup() {
     // ── 10. External OSC Receiver ─────────────────────────────────────────────
     OSCReceiver::instance().begin();
 
-    Serial.println("\n[Main] All systems initialised. Entering main loop.\n");
+    DBG_PRINTLN("\n[Main] All systems initialised. Entering main loop.\n");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

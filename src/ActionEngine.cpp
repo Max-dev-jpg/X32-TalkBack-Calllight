@@ -22,9 +22,9 @@ void ActionEngine::begin() {
     _udp.stop();
     _udpReady = _udp.begin(ACT_SEND_PORT);
     if (_udpReady) {
-        Serial.printf("[Action] Send socket ready on port %d\n", ACT_SEND_PORT);
+        DBG_PRINTF("[Action] Send socket ready on port %d\n", ACT_SEND_PORT);
     } else {
-        Serial.println("[Action] Send socket FAILED!");
+        DBG_PRINTLN("[Action] Send socket FAILED!");
     }
 }
 
@@ -88,7 +88,7 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
     StaticJsonDocument<1024> doc;
     DeserializationError err = deserializeJson(doc, jsonStr);
     if (err) {
-        Serial.printf("[Action] JSON parse error (src=%u): %s\n", srcId, err.c_str());
+        DBG_PRINTF("[Action] JSON parse error (src=%u): %s\n", srcId, err.c_str());
         return;
     }
 
@@ -98,7 +98,7 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
 
         if (strcmp(t, "clearSolo") == 0) {
             sendInt(TB_CLEARSOLO_PATH, 1);
-            Serial.println("[Action]   -> clearSolo");
+            DBG_PRINTLN("[Action]   -> clearSolo");
 
         } else if (strcmp(t, "solo") == 0) {
             uint8_t id = channelToSoloID(act["ct"] | (uint8_t)0,
@@ -106,7 +106,7 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
             char idStr[3];
             snprintf(idStr, sizeof(idStr), "%02u", id);
             sendInt(String(TB_SOLOSW_BASE) + idStr, 1);
-            Serial.printf("[Action]   -> solo id=%u\n", id);
+            DBG_PRINTF("[Action]   -> solo id=%u\n", id);
 
         } else if (strcmp(t, "unsolo") == 0) {
             uint8_t id = channelToSoloID(act["ct"] | (uint8_t)0,
@@ -114,26 +114,26 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
             char idStr[3];
             snprintf(idStr, sizeof(idStr), "%02u", id);
             sendInt(String(TB_SOLOSW_BASE) + idStr, 0);
-            Serial.printf("[Action]   -> unsolo id=%u\n", id);
+            DBG_PRINTF("[Action]   -> unsolo id=%u\n", id);
 
         } else if (strcmp(t, "mute") == 0) {
             String path = buildMutePath(act["ct"] | (uint8_t)0,
                                          act["cn"] | (uint8_t)1);
             if (path.length()) sendInt(path, 0);   // 0 = muted on X32/M32
-            Serial.printf("[Action]   -> mute %s\n", path.c_str());
+            DBG_PRINTF("[Action]   -> mute %s\n", path.c_str());
 
         } else if (strcmp(t, "unmute") == 0) {
             String path = buildMutePath(act["ct"] | (uint8_t)0,
                                          act["cn"] | (uint8_t)1);
             if (path.length()) sendInt(path, 1);   // 1 = active/unmuted
-            Serial.printf("[Action]   -> unmute %s\n", path.c_str());
+            DBG_PRINTF("[Action]   -> unmute %s\n", path.c_str());
 
         } else if (strcmp(t, "osc") == 0) {
             const char* p = act["p"] | "";
             int32_t v     = act["v"] | (int32_t)0;
             if (p[0] != '\0') {
                 sendInt(String(p), v);
-                Serial.printf("[Action]   -> osc %s = %d\n", p, v);
+                DBG_PRINTF("[Action]   -> osc %s = %d\n", p, v);
             }
 
         } else if (strcmp(t, "out") == 0) {
@@ -143,12 +143,12 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
             } else {
                 _outputMask &= ~(1u << srcId);
             }
-            Serial.printf("[Action]   -> output src=%u %s\n", srcId, s ? "ON" : "OFF");
+            DBG_PRINTF("[Action]   -> output src=%u %s\n", srcId, s ? "ON" : "OFF");
 
         } else if (strcmp(t, "forceout") == 0) {
             // Suppress ALL output sources while active — overrides triggers and OSC
             _suppressMask |= (1u << srcId);
-            Serial.printf("[Action]   -> forceout src=%u (all outputs suppressed)\n", srcId);
+            DBG_PRINTF("[Action]   -> forceout src=%u (all outputs suppressed)\n", srcId);
         }
     }
 }

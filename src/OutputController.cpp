@@ -12,7 +12,7 @@ void OutputController::begin() {
     uint8_t pin = Config.outputPin;
     pinMode(pin, OUTPUT);
     setPinState(false);
-    Serial.printf("[Output] GPIO pin %d initialised.\n", pin);
+    DBG_PRINTF("[Output] GPIO pin %d initialised.\n", pin);
 }
 
 void OutputController::setPinState(bool on) {
@@ -28,7 +28,7 @@ void OutputController::setTrigger(bool active) {
 void OutputController::testPulse(uint32_t durationMs) {
     _testMode  = true;
     _testEndMs = millis() + durationMs;
-    Serial.printf("[Output] Test pulse for %u ms\n", durationMs);
+    DBG_PRINTF("[Output] Test pulse for %u ms\n", durationMs);
 }
 
 void OutputController::loop() {

@@ -25,15 +25,15 @@ void OSCReceiver::begin() {
     _udpOpen = false;
 
     if (!Config.extOscEnabled) {
-        Serial.println("[XOSC] Disabled.");
+        DBG_PRINTLN("[XOSC] Disabled.");
         return;
     }
 
     if (_udp.begin(Config.extOscPort)) {
         _udpOpen = true;
-        Serial.printf("[XOSC] Listening on port %u\n", Config.extOscPort);
+        DBG_PRINTF("[XOSC] Listening on port %u\n", Config.extOscPort);
     } else {
-        Serial.println("[XOSC] UDP begin failed!");
+        DBG_PRINTLN("[XOSC] UDP begin failed!");
     }
 }
 
@@ -45,10 +45,10 @@ void OSCReceiver::handleTriggerN(uint8_t n, bool on) {
     _extTrigger[n] = on;
 
     if (on) {
-        Serial.printf("[XOSC] Trigger %u ON\n", n + 1);
+        DBG_PRINTF("[XOSC] Trigger %u ON\n", n + 1);
         ActionEngine::execute(Config.triggers[n].onJson, ACT_SRC_OSC);
     } else {
-        Serial.printf("[XOSC] Trigger %u OFF\n", n + 1);
+        DBG_PRINTF("[XOSC] Trigger %u OFF\n", n + 1);
         ActionEngine::execute(Config.triggers[n].offJson, ACT_SRC_OSC);
         // Only clear the output bitmask once no OSC triggers remain active
         if (!isExtTriggerActive()) ActionEngine::clearOutput(ACT_SRC_OSC);
@@ -63,11 +63,11 @@ void OSCReceiver::pulseTriggerN(uint8_t n, uint32_t ms) {
     if (!_extTrigger[n]) {
         // Fire on — loop() will fire off when the timer expires
         _extTrigger[n] = true;
-        Serial.printf("[XOSC] Trigger %u PULSE %u ms\n", n + 1, ms);
+        DBG_PRINTF("[XOSC] Trigger %u PULSE %u ms\n", n + 1, ms);
         ActionEngine::execute(Config.triggers[n].onJson, ACT_SRC_OSC);
     } else {
         // Retriggered while already on: extend the deadline
-        Serial.printf("[XOSC] Trigger %u PULSE extended to %u ms\n", n + 1, ms);
+        DBG_PRINTF("[XOSC] Trigger %u PULSE extended to %u ms\n", n + 1, ms);
     }
 }
 
@@ -83,7 +83,7 @@ void OSCReceiver::processIncoming() {
     OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)rd);
     if (!msg.valid) return;
 
-    Serial.printf("[XOSC] Received: %s  typeTag=%c\n",
+    DBG_PRINTF("[XOSC] Received: %s  typeTag=%c\n",
                   msg.address.c_str(), msg.typeTag ? msg.typeTag : '?');
 
     const String& addr = msg.address;

@@ -14,7 +14,7 @@ void TriggerManager::begin() {
         _state[n] = TState{};
         ActionEngine::clearOutput(n); // ACT_SRC_TRIGGER_0..3 = 0..3
     }
-    Serial.printf("[Trigger] TriggerManager initialised (%u slots)\n", MAX_TRIGGERS);
+    DBG_PRINTF("[Trigger] TriggerManager initialised (%u slots)\n", MAX_TRIGGERS);
 }
 
 bool TriggerManager::isAnyTriggered() const {
@@ -68,7 +68,7 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
             s.inHold     = true;
             s.holdStart  = now;
             s.inRelease  = false;
-            Serial.printf("[Trigger %u] ACTIVATED  level=%.3f\n", n, s.smoothed);
+            DBG_PRINTF("[Trigger %u] ACTIVATED  level=%.3f\n", n, s.smoothed);
         }
     } else {
         if (!s.rawAbove) {
@@ -84,7 +84,7 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
                 if (now - s.releaseStart >= c.releaseDelayMs) {
                     s.triggered = false;
                     s.inRelease = false;
-                    Serial.printf("[Trigger %u] RELEASED\n", n);
+                    DBG_PRINTF("[Trigger %u] RELEASED\n", n);
                 }
             }
         } else {

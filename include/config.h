@@ -3,6 +3,21 @@
 // config.h  –  Global constants and compile-time defaults
 // =============================================================================
 
+// ── Serial prints ─────────────────────────────────────────────────────────
+#define DEBUG 1
+
+#if DEBUG == 1
+  #define DBG_BEGIN(...) Serial.begin(__VA_ARGS__)
+  #define DBG_PRINT(...) Serial.print(__VA_ARGS__)
+  #define DBG_PRINTLN(...) Serial.println(__VA_ARGS__)
+  #define DBG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#else
+  #define DBG_BEGIN(...)
+  #define DBG_PRINT(...)
+  #define DBG_PRINTLN(...)
+  #define DBG_PRINTF(...)
+#endif
+
 // ── Firmware identity ─────────────────────────────────────────────────────────
 #define FIRMWARE_VERSION    "1.1.0"
 #define DEVICE_NAME         "TalkBack-CallLight"

@@ -10,13 +10,13 @@ void ConfigManager::begin()
 {
     applyDefaults();
     StorageManager::instance().load(_cfg);
-    Serial.println("[Config] Configuration loaded.");
+    DBG_PRINTLN("[Config] Configuration loaded.");
 }
 
 bool ConfigManager::save()
 {
     bool ok = StorageManager::instance().save(_cfg);
-    Serial.println(ok ? "[Config] Saved." : "[Config] Save FAILED!");
+    DBG_PRINTLN(ok ? "[Config] Saved." : "[Config] Save FAILED!");
     return ok;
 }
 
@@ -24,7 +24,7 @@ void ConfigManager::resetToDefaults()
 {
     StorageManager::instance().erase();
     applyDefaults();
-    Serial.println("[Config] Reset to defaults.");
+    DBG_PRINTLN("[Config] Reset to defaults.");
 }
 
 void ConfigManager::applyDefaults()

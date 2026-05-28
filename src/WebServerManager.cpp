@@ -152,7 +152,7 @@ static String buildConfigJSON() {
 }
 
 static bool applyConfigJSON(const String& body) {
-    Serial.printf("[Web] applyConfigJSON: body len=%u, heap=%u\n",
+    DBG_PRINTF("[Web] applyConfigJSON: body len=%u, heap=%u\n",
                   (unsigned)body.length(), (unsigned)ESP.getFreeHeap());
 
     DynamicJsonDocument doc(4096);
@@ -160,8 +160,8 @@ static bool applyConfigJSON(const String& body) {
     // instead of duplicating strings into the pool (saves several KB for action JSON)
     DeserializationError err = deserializeJson(doc, body.c_str());
     if (err != DeserializationError::Ok) {
-        Serial.printf("[Web] JSON parse FAILED: %s\n", err.c_str());
-        Serial.printf("[Web] Body preview: %.120s\n", body.c_str());
+        DBG_PRINTF("[Web] JSON parse FAILED: %s\n", err.c_str());
+        DBG_PRINTF("[Web] Body preview: %.120s\n", body.c_str());
         return false;
     }
 
@@ -207,7 +207,7 @@ static bool applyConfigJSON(const String& body) {
             if (to.containsKey("onJson"))          strlcpy(t.onJson,  to["onJson"],  sizeof(t.onJson));
             if (to.containsKey("offJson"))         strlcpy(t.offJson, to["offJson"], sizeof(t.offJson));
 
-            Serial.printf("[Web] T%u applied: en=%d chType=%u chNum=%u sig=%u "
+            DBG_PRINTF("[Web] T%u applied: en=%d chType=%u chNum=%u sig=%u "
                           "thr=%.3f hyst=%.3f smth=%.3f inv=%d\n",
                           n, t.enabled, t.channelType, t.channelNumber,
                           t.signalSource, t.threshold, t.hysteresis,
@@ -268,12 +268,12 @@ void WebServerManager::onWSEvent(AsyncWebSocket* srv,
                                   AwsEventType type,
                                   void* arg, uint8_t* data, size_t len) {
     if (type == WS_EVT_CONNECT) {
-        Serial.printf("[WS] Client #%u connected from %s\n",
+        DBG_PRINTF("[WS] Client #%u connected from %s\n",
                       client->id(),
                       client->remoteIP().toString().c_str());
         client->text(buildStatusJSON());
     } else if (type == WS_EVT_DISCONNECT) {
-        Serial.printf("[WS] Client #%u disconnected\n", client->id());
+        DBG_PRINTF("[WS] Client #%u disconnected\n", client->id());
     }
 }
 
@@ -367,9 +367,9 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
             TriggerManager::instance().begin();
             OSCReceiver::instance().begin();
             NetworkManager::instance().applyConfig();
-            Serial.println("[Web] Config updated and saved.");
+            DBG_PRINTLN("[Web] Config updated and saved.");
         } else {
-            Serial.println("[Web] Config apply/save FAILED!");
+            DBG_PRINTLN("[Web] Config apply/save FAILED!");
         }
     }
 }
@@ -413,9 +413,9 @@ void WebServerManager::handleMonitorToggle(AsyncWebServerRequest* req) {
 
 void WebServerManager::begin() {
     if (!LittleFS.begin(true)) {
-        Serial.println("[Web] LittleFS mount FAILED!");
+        DBG_PRINTLN("[Web] LittleFS mount FAILED!");
     } else {
-        Serial.println("[Web] LittleFS mounted.");
+        DBG_PRINTLN("[Web] LittleFS mounted.");
     }
 
     setupWebSocket();
@@ -424,7 +424,7 @@ void WebServerManager::begin() {
 
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     _server.begin();
-    Serial.println("[Web] HTTP server started on port 80.");
+    DBG_PRINTLN("[Web] HTTP server started on port 80.");
 }
 
 void WebServerManager::broadcastStatus() {

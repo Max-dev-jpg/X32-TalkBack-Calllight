@@ -60,6 +60,7 @@ private:
     uint32_t _lastKeepaliveMs    = 0;
     uint32_t _lastIgnoredPacketMs = 0;
     uint32_t _lastInvalidPacketMs = 0;
+    uint32_t _lastBlobDebugMs[MAX_TRIGGERS] = {}; // throttle: blob debug once per 2 s per trigger
 
     uint8_t  _txBuf[256];
     uint8_t  _rxBuf[1024];

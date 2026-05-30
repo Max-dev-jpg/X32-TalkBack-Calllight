@@ -67,6 +67,41 @@ void MixerConnection::rebuildPaths() {
             _triggerPaths[n] = ConfigManager::instance().buildOSCPathForTrigger(t);
         }
     }
+
+    // ── Debug: print full subscription / path plan ────────────────────────────
+    DBG_PRINTLN("[Mixer] ── Trigger path plan ──────────────────────────");
+    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+        const TriggerConfig& t = Config.triggers[n];
+        if (!t.enabled) {
+            DBG_PRINTF("[Mixer]   T%u: DISABLED\n", n);
+            continue;
+        }
+        const char* sigStr = (t.signalSource == SIG_METER) ? "METER" :
+                             (t.signalSource == SIG_MUTE)  ? "MUTE"  : "FADER";
+        const char* chStr;
+        switch (t.channelType) {
+            case CH_INPUT:  chStr = "INPUT";   break;
+            case CH_BUS:    chStr = "BUS";     break;
+            case CH_MATRIX: chStr = "MATRIX";  break;
+            case CH_DCA:    chStr = "DCA";     break;
+            case CH_AUXIN:  chStr = "AUXIN";   break;
+            case CH_FXRTN:  chStr = "FXRTN";   break;
+            case CH_MAIN:   chStr = "MAIN";    break;
+            case CH_MONO:   chStr = "MONO";    break;
+            default:        chStr = "UNKNOWN"; break;
+        }
+        if (t.signalSource == SIG_METER) {
+            DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  alias=%-6s  blob_idx=%d\n",
+                       n, sigStr, chStr, t.channelNumber,
+                       _triggerPaths[n].c_str(), (int)_meterChannelIds[n]);
+        } else {
+            const char* custom = (t.customOSCPath[0] != '\0') ? " (custom)" : "";
+            DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  path=%s%s\n",
+                       n, sigStr, chStr, t.channelNumber,
+                       _triggerPaths[n].c_str(), custom);
+        }
+    }
+    DBG_PRINTLN("[Mixer] ─────────────────────────────────────────────────");
 }
 
 // ── Outgoing messages ─────────────────────────────────────────────────────────
@@ -115,8 +150,19 @@ void MixerConnection::sendMeterSubscriptions() {
         _udp.write(_txBuf, len);
         _udp.endPacket();
 
-        DBG_PRINTF("[Mixer] /batchsubscribe %s ch=%d\n",
-                      alias.c_str(), (int)chId);
+        const char* chStr2;
+        switch (t.channelType) {
+            case CH_INPUT:  chStr2 = "INPUT";   break;
+            case CH_BUS:    chStr2 = "BUS";     break;
+            case CH_MATRIX: chStr2 = "MATRIX";  break;
+            case CH_AUXIN:  chStr2 = "AUXIN";   break;
+            case CH_FXRTN:  chStr2 = "FXRTN";   break;
+            case CH_MAIN:   chStr2 = "MAIN";    break;
+            case CH_MONO:   chStr2 = "MONO";    break;
+            default:        chStr2 = "?";       break;
+        }
+        DBG_PRINTF("[Mixer] /batchsubscribe alias=%-5s  blob_idx=%-3d  (T%u %s#%u)\n",
+                   alias.c_str(), (int)chId, n, chStr2, t.channelNumber);
     }
 }
 
@@ -178,6 +224,13 @@ void MixerConnection::processIncoming() {
                 uint32_t chIdx = (_meterChannelIds[n] >= 0) ? (uint32_t)_meterChannelIds[n] : 0;
                 level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
                                                        msg.blobArgOffset, chIdx);
+                // Throttled debug: at most once per 2 s per trigger
+                uint32_t nowDbg = millis();
+                if (nowDbg - _lastBlobDebugMs[n] >= 2000) {
+                    _lastBlobDebugMs[n] = nowDbg;
+                    DBG_PRINTF("[Mixer] T%u blob: alias=%-5s  blob_idx=%-3u  level=%.4f  pkt=%d bytes\n",
+                               n, _triggerPaths[n].c_str(), chIdx, level, read);
+                }
             }
 
             level = constrain(level, 0.0f, 1.0f);

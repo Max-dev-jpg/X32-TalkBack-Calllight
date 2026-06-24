@@ -68,10 +68,45 @@ function onTrigChTypeChange(n) {
   }
   onTrigSigSrcChange(n);
 }
-function normalizedToDb(value, maxDb = 10) {
+
+// Matching curve for Meter dB value<>float conversion
+const METER_POINTS = [
+  { db: -60, f: 0.0010 }, { db: -55, f: 0.0018 }, { db: -50, f: 0.0032 },
+  { db: -45, f: 0.0057 }, { db: -40, f: 0.0101 }, { db: -35, f: 0.0180 },
+  { db: -30, f: 0.0320 }, { db: -28, f: 0.0402 }, { db: -26, f: 0.0507 },
+  { db: -24, f: 0.0638 }, { db: -22, f: 0.0803 }, { db: -20, f: 0.1010 },
+  { db: -18, f: 0.1273 }, { db: -16, f: 0.1602 }, { db: -14, f: 0.2016 },
+  { db: -13, f: 0.2263 }, { db: -12, f: 0.2539 }, { db: -11, f: 0.2849 },
+  { db: -10, f: 0.3197 }, { db: -9,  f: 0.3585 }, { db: -8,  f: 0.4022 },
+  { db: -7,  f: 0.4515 }, { db: -6,  f: 0.5066 }, { db: -5,  f: 0.5684 },
+  { db: -4,  f: 0.6378 }, { db: -3,  f: 0.7156 }, { db: -2,  f: 0.8029 },
+  { db: -1,  f: 0.9009 }, { db: 0,   f: 1.0000 }
+];
+
+function normalizedToDb(value, isMeter = false) {
   const norm = parseFloat(value) || 0;
+  
+  if (isMeter) {
+    if (norm <= 0.0) return -60.0;
+    if (norm >= 1.0) return 0.0;
+  
+    // find correct segment
+    for (let i = 0; i < METER_POINTS.length - 1; i++) {
+      const p1 = METER_POINTS[i];
+      const p2 = METER_POINTS[i+1];
+      
+      if (norm >= p1.f && norm <= p2.f) {
+        // linear interpolation between p1 and p2
+        const ratio = (norm - p1.f) / (p2.f - p1.f);
+        return p1.db + ratio * (p2.db - p1.db);
+      }
+    }
+    return 0;
+  }
+
+  // fader logic
   if (norm <= 0.0) return -90.0;
-  if (norm >= 1.0) return maxDb;
+  if (norm >= 1.0) return 10.0;
 
   let db;
   if (norm < 0.0625) {
@@ -85,18 +120,37 @@ function normalizedToDb(value, maxDb = 10) {
   }
   return Math.round(db * 10) / 10;
 }
+
 function formatSignalValue(value, signalSource) {
   const val = parseFloat(value) || 0;
   if (signalSource === 0) {
-    return normalizedToDb(val, 10).toFixed(1) + ' dB';
+    return normalizedToDb(val, false).toFixed(1) + ' dB';
   }
   if (signalSource === 1) {
-    return normalizedToDb(val, 0).toFixed(1) + ' dB';
+    return normalizedToDb(val, true).toFixed(1) + ' dB';
   }
   return val.toFixed(0);
 }
-function dbToNormalized(value) {
+
+function dbToNormalized(value, isMeter = false) {
   const db = parseFloat(value);
+  
+  if (isMeter) {
+    if (!Number.isFinite(db) || db <= -60) return 0.0;
+    if (db >= 0) return 1.0;
+    for (let i = 0; i < METER_POINTS.length - 1; i++) {
+      const p1 = METER_POINTS[i];
+      const p2 = METER_POINTS[i+1];
+      
+      if (db >= p1.db && db <= p2.db) {
+        const ratio = (db - p1.db) / (p2.db - p1.db);
+        return p1.f + ratio * (p2.f - p1.f);
+      }
+    }
+    return 1.0;
+  }
+
+  // fader logic
   if (!Number.isFinite(db) || db <= -90) return 0.0;
   if (db >= 10) return 1.0;
 
@@ -112,6 +166,8 @@ function dbToNormalized(value) {
   }
   return Math.max(0, Math.min(1, norm));
 }
+
+
 function getThresholdValue(n) {
   const range = document.getElementById('t' + n + '-thresh');
   if (!range) return 0;
@@ -144,7 +200,7 @@ function updateThresholdDisplay(n) {
 
   if (label) label.style.display = '';
   if (sigSrc === 0) {
-    const db = normalizedToDb(valueNorm, 10);
+    const db = normalizedToDb(valueNorm, false);
     range.min = 0;
     range.max = 1;
     range.step = 0.01;
@@ -156,18 +212,17 @@ function updateThresholdDisplay(n) {
     if (labelText) labelText.textContent = 'Threshold (-90.0 – +10.0 dB)';
   }
   else if (sigSrc === 1) {
-    let db = normalizedToDb(valueNorm, 0);
-    if (db > 0) db = 0;
+    let db = normalizedToDb(valueNorm, true);
     range.min = 0;
     range.max = 1;
     range.step = 0.01;
-    num.min = -90;
+    num.min = -60; // Startet jetzt bei -60
     num.max = 0;
     num.step = 0.1;
     range.value = valueNorm.toFixed(2);
     num.value = db.toFixed(1);
-    if (labelText) labelText.textContent = 'Threshold (-90.0 – 0.0 dB)';
-  }  
+    if (labelText) labelText.textContent = 'Threshold (-60.0 – 0.0 dB)';
+  }
   else {
     range.min = 0;
     range.max = 1;
@@ -186,7 +241,7 @@ function updateThresholdNorm(n, rawValue, fromRange = false) {
   const norm = fromRange
     ? (parseFloat(rawValue) || 0)
     : ((sigSrc === 0 || sigSrc === 1)
-       ? dbToNormalized(rawValue)
+       ? dbToNormalized(rawValue, sigSrc === 1)
        : (parseFloat(rawValue) || 0));
   const range = document.getElementById('t' + n + '-thresh');
   const num   = document.getElementById('t' + n + '-thresh-n');
@@ -686,29 +741,40 @@ function syncNumById(rangeEl, numId) {
     const n = triggerId[1];
     const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
     updateThresholdNorm(n, rangeEl.value, true);
-    if (sigSrc === 0 || sigSrc === 1) {
-      const db = normalizedToDb(rangeEl.value, sigSrc === 0 ? 10 : 0);
+
+    if (sigSrc === 0) {
+      // Fader: logarithmic
+      const db = normalizedToDb(rangeEl.value, false);
       if (numEl) numEl.value = db.toFixed(1);
     } else {
-      if (numEl) numEl.value = rangeEl.value;
+      // Meter: linear slider
+      const db = (parseFloat(rangeEl.value) * 60) - 60;
+      if (numEl) numEl.value = db.toFixed(1);
     }
     return;
   }
   if (numEl) numEl.value = rangeEl.value;
 }
-function syncRangeById(numEl, rangeId) {
+
+function syncRangeById(numId, rangeId) { // Hinweis: Habe hier Parameter für bessere Logik getauscht
   const r = document.getElementById(rangeId);
-  if (!r) return;
+  const numEl = document.getElementById(numId);
+  if (!r || !numEl) return;
+  
   const triggerId = rangeId.match(/^t(\d+)-thresh$/);
   if (triggerId) {
     const n = triggerId[1];
     const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
-    if (sigSrc === 0 || sigSrc === 1) {
-      const norm = dbToNormalized(numEl.value);
+
+    if (sigSrc === 0) {
+      // Fader: logarithmic
+      const norm = dbToNormalized(numEl.value, false);
       r.value = norm.toFixed(2);
       updateThresholdNorm(n, numEl.value, false);
     } else {
-      r.value = numEl.value;
+      // Meter: linear slider
+      const norm = (parseFloat(numEl.value) + 60) / 60;
+      r.value = norm.toFixed(2);
       updateThresholdNorm(n, numEl.value, false);
     }
     return;

@@ -143,8 +143,10 @@ void MixerConnection::sendMeterSubscriptions() {
         if (chId < 0) continue; // DCA not available on /meters/6
 
         String alias = String("/mt") + n;
-        // tf=2 → 100 Updates in the 10 s timeframe
-        size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 2,
+        DBG_PRINTF("[Mixer] Sending /batchsubscribe for T%u: alias=%s  blob_idx=%d\n",
+                   n, alias.c_str(), (int)chId);
+        // tf=1 → 100 Updates in the 10 s timeframe
+        size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 1,
                                                      _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);
@@ -185,7 +187,7 @@ void MixerConnection::processIncoming() {
             continue;
         }
 
-        int read = _udp.read(_rxBuf, sizeof(_rxBuf) - 1);
+        int read = _udp.read(_rxBuf, sizeof(_rxBuf));
         if (read <= 0) continue;
 
         OSCMessage msg = OSCHandler::parse(_rxBuf, (size_t)read);
@@ -219,11 +221,21 @@ void MixerConnection::processIncoming() {
                 // Mute state: /mix/on → 1 = active, 0 = muted
                 level = (float)msg.intVal;
             } else if (msg.typeTag == 'b') {
-                // Blob from /batchsubscribe — the X32 sends the full meter bank;
-                // read the float at the channel index we subscribed to.
+                // Blob from /batchsubscribe — Da wir nur EINEN Kanal auf /meters/6 
+                // abonniert haben, enthält der Blob genau 4 Werte für diesen Kanal:
+                // 0=Pre-Fade, 1=Gate, 2=Gain Reduction, 3=Post-Fade.
                 uint32_t chIdx = (_meterChannelIds[n] >= 0) ? (uint32_t)_meterChannelIds[n] : 0;
-                level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
-                                                       msg.blobArgOffset, chIdx);
+                
+                // KORREKTUR: Wir fragen explizit Index 0 (Pre-Fade) ab, genau wie im MWE.
+                // (Wenn du Post-Fade bevorzugst, ändere die 0 zu einer 3).
+                level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read, msg.blobArgOffset, 0);
+
+                /* * Fun Fact: Deine OSCHandler::parse() Funktion extrahiert den 
+                 * allerersten Float (Index 0) ohnehin schon standardmäßig in msg.floatVal!
+                 * Du könntest also statt extractMeterFloat() sogar einfach schreiben:
+                 * level = msg.floatVal; 
+                 */
+
                 // Throttled debug: at most once per 2 s per trigger
                 uint32_t nowDbg = millis();
                 if (nowDbg - _lastBlobDebugMs[n] >= 2000) {

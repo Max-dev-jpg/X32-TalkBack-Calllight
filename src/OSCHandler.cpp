@@ -11,12 +11,16 @@
 
 size_t OSCHandler::writeOSCString(uint8_t* buf, size_t offset,
                                    size_t bufLen, const String& str) {
-    size_t slen = str.length();
-    if (offset + slen + 1 > bufLen) return offset;
-    memcpy(buf + offset, str.c_str(), slen);
-    offset += slen;
-    do { buf[offset++] = 0; } while (offset % 4 != 0);
-    return offset;
+  for (size_t i = 0; i < str.length() && offset < bufLen; ++i) {
+    buf[offset++] = str[i];
+  }
+  if (offset < bufLen) {
+    buf[offset++] = '\0';
+  }
+  while ((offset % 4) != 0 && offset < bufLen) {
+    buf[offset++] = '\0';
+  }
+  return offset;
 }
 
 size_t OSCHandler::readOSCString(const uint8_t* buf, size_t len,
@@ -30,9 +34,10 @@ size_t OSCHandler::readOSCString(const uint8_t* buf, size_t len,
 }
 
 float OSCHandler::readBEFloat(const uint8_t* p) {
-    uint32_t raw = ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
-                   ((uint32_t)p[2] <<  8) |  (uint32_t)p[3];
-    float f; memcpy(&f, &raw, 4); return f;
+    uint32_t raw = readBEInt(p);
+    float value; 
+    memcpy(&value, &raw, sizeof(value)); 
+    return value;
 }
 
 int32_t OSCHandler::readBEInt(const uint8_t* p) {
@@ -42,9 +47,10 @@ int32_t OSCHandler::readBEInt(const uint8_t* p) {
 
 // X32/M32 blob data is little-endian floats
 float OSCHandler::readLEFloat(const uint8_t* p) {
-    uint32_t raw = (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
-                   ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-    float f; memcpy(&f, &raw, 4); return f;
+    uint32_t raw = readLEInt(p);
+    float value; 
+    memcpy(&value, &raw, sizeof(value)); 
+    return value;
 }
 
 // X32/M32 blob header: float count is a little-endian int32
@@ -105,13 +111,13 @@ size_t OSCHandler::buildBatchSubscribe(const String& alias,
     offset = writeOSCString(buf, offset, bufLen, alias);
     offset = writeOSCString(buf, offset, bufLen, "/meters/6");
 
-    auto writeInt = [&](int32_t v) {
+    auto writeInt = [&](int32_t value) {
         if (offset + 4 <= bufLen) {
-            buf[offset++] = (uint8_t)((v >> 24) & 0xFF);
-            buf[offset++] = (uint8_t)((v >> 16) & 0xFF);
-            buf[offset++] = (uint8_t)((v >>  8) & 0xFF);
-            buf[offset++] = (uint8_t)( v         & 0xFF);
-        }
+            buf[offset++] = (uint8_t)((value >> 24) & 0xFF);
+            buf[offset++] = (uint8_t)((value >> 16) & 0xFF);
+            buf[offset++] = (uint8_t)((value >>  8) & 0xFF);
+            buf[offset++] = (uint8_t)( value        & 0xFF);
+            }
     };
     writeInt(channelId);
     writeInt(0);       // skip = 0 (contiguous channel selection)

@@ -251,6 +251,16 @@ function updateThresholdNorm(n, rawValue, fromRange = false) {
 function onTrigSigSrcChange(n) {
   triggerSignalSources[n] = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   updateThresholdDisplay(n);
+  updateMeterTapVisibility(n);
+}
+
+// Show the Pre/Post-Fader/... meter tap selector only for Meter signal source.
+// DCA channels cannot use meters (the Meter option is disabled for them), so the
+// selector stays hidden in that case as well.
+function updateMeterTapVisibility(n) {
+  const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+  const lbl = document.getElementById('t' + n + '-metertap-lbl');
+  if (lbl) lbl.style.display = (sigSrc === 1) ? '' : 'none';
 }
 
 // ── Per-trigger LED color helpers ─────────────────────────────────────────────
@@ -585,6 +595,7 @@ function loadTriggerConfig(triggers) {
     const sigSrc = t.signalSource ?? 0;
     triggerSignalSources[n] = sigSrc;
     setVal('t' + n + '-sigsrc',  sigSrc);
+    setVal('t' + n + '-metertap', t.meterSignalType);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
     const thresholdNorm = Number.isFinite(t.threshold) ? t.threshold : 0.5;
     const threshEl = document.getElementById('t' + n + '-thresh');
@@ -640,6 +651,7 @@ function collectTriggers() {
       channelType:    getInt('t' + n + '-chtype'),
       channelNumber:  getInt('t' + n + '-chnum'),
       signalSource:   getInt('t' + n + '-sigsrc'),
+      meterSignalType: getInt('t' + n + '-metertap'),
       customOSCPath:  getVal('t' + n + '-oscpath'),
       threshold:      getThresholdValue(n),
       hysteresis:     getNum('t' + n + '-hyst'),

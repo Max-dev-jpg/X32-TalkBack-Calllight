@@ -50,6 +50,7 @@ void ConfigManager::applyDefaults()
         t.channelType     = CH_DCA;
         t.channelNumber   = 1;
         t.signalSource    = SIG_FADER;
+        t.meterSignalType = 0;        // default: pre-fader meter tap
         t.customOSCPath[0] = '\0';
         t.threshold       = DEFAULT_THRESHOLD;
         t.hysteresis      = DEFAULT_HYSTERESIS;
@@ -152,10 +153,11 @@ String ConfigManager::buildOSCPathForTrigger(const TriggerConfig& t) const
 }
 
 // =============================================================================
-// /meters/6 channel index mapping (from X32 OSC Command Reference PDF)
-// Input 1-32 → 0-31,  AuxIn 1-8 → 32-39,  FxRtn 1-8 → 40-47
-// Bus 1-16  → 48-63,  Matrix 1-6 → 64-69,  Main L/R → 70, Main M → 71
-// DCA: not available on /meters/6
+// /meters/6 <channelId> mapping (from the X32/M32 OSC Command Reference).
+// Returns the 0-based channel id passed to /batchsubscribe for this trigger:
+//   Input 1-32 → 0-31,  AuxIn 1-8 → 32-39,  FxRtn 1-8 → 40-47,
+//   Bus 1-16   → 48-63, Matrix 1-6 → 64-69, Main L/R → 70, Main M/C → 71.
+// DCA groups have no channel-strip meter on /meters/6 → returns -1.
 // =============================================================================
 int32_t ConfigManager::meterChannelId(const TriggerConfig& t) const
 {

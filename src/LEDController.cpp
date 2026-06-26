@@ -83,10 +83,18 @@ void LEDController::loop() {
     // Update brightness from config each cycle (low overhead)
     _strip.setBrightness(Config.ledBrightness);
 
-    // Test mode
+    // Test mode — highest priority. The Test Output button must always work,
+    // even while the mixer is disconnected (which otherwise forces the solid
+    // red status indicator below). Use the configured call-light color so the
+    // test reflects the normal output appearance.
     if (_testMode) {
         if (now < _testEndMs) {
-            _active = true;
+            _active  = true;
+            _activeR = Config.ledR;
+            _activeG = Config.ledG;
+            _activeB = Config.ledB;
+            updateStrip();
+            return;
         } else {
             _testMode = false;
             _active   = false;

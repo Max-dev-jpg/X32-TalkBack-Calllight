@@ -60,7 +60,9 @@ void MixerConnection::rebuildPaths() {
             continue;
         }
         if (t.signalSource == SIG_METER) {
-            // Responses arrive addressed to our alias (e.g. "/mt0")
+            // Meter triggers subscribe via /batchsubscribe; the console's replies
+            // are addressed to our per-trigger alias (e.g. "/mt0"), so we match on
+            // that alias instead of a real mixer path.
             _triggerPaths[n]    = String("/mt") + n;
             _meterChannelIds[n] = ConfigManager::instance().meterChannelId(t);
         } else {
@@ -131,8 +133,12 @@ void MixerConnection::sendFaderMuteQueries() {
     }
 }
 
-// Subscribe or renew /batchsubscribe for all enabled meter triggers
-// Called every XREMOTE_INTERVAL_MS (same cadence as /xremote).
+// Subscribe (or renew the subscription) to the channel-strip meter for every
+// enabled SIG_METER trigger. Each trigger gets its OWN subscription, identified
+// by a unique alias ("/mt0".."/mt3"), so the X32 streams an independent blob per
+// trigger — that is what keeps two meter triggers on different channels apart.
+// Subscriptions expire after ~10 s and are refreshed on the /xremote cadence
+// (XREMOTE_INTERVAL_MS).
 void MixerConnection::sendMeterSubscriptions() {
     if (!_udpOpen) return;
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
@@ -140,31 +146,30 @@ void MixerConnection::sendMeterSubscriptions() {
         if (!t.enabled || t.signalSource != SIG_METER) continue;
 
         int32_t chId = ConfigManager::instance().meterChannelId(t);
-        if (chId < 0) continue; // DCA not available on /meters/6
+        if (chId < 0) continue; // e.g. DCA: no channel-strip meter on /meters/6
 
-        String alias = String("/mt") + n;
-        DBG_PRINTF("[Mixer] Sending /batchsubscribe for T%u: alias=%s  blob_idx=%d\n",
-                   n, alias.c_str(), (int)chId);
-        // tf=1 → 100 Updates in the 10 s timeframe
+        // alias "/mtN" routes the replies back to trigger n; tf=1 → frequent
+        // updates (see OSCHandler::buildBatchSubscribe()).
+        const String alias = String("/mt") + n;
         size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 1,
                                                      _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);
         _udp.endPacket();
 
-        const char* chStr2;
+        const char* chStr;
         switch (t.channelType) {
-            case CH_INPUT:  chStr2 = "INPUT";   break;
-            case CH_BUS:    chStr2 = "BUS";     break;
-            case CH_MATRIX: chStr2 = "MATRIX";  break;
-            case CH_AUXIN:  chStr2 = "AUXIN";   break;
-            case CH_FXRTN:  chStr2 = "FXRTN";   break;
-            case CH_MAIN:   chStr2 = "MAIN";    break;
-            case CH_MONO:   chStr2 = "MONO";    break;
-            default:        chStr2 = "?";       break;
+            case CH_INPUT:  chStr = "INPUT";   break;
+            case CH_BUS:    chStr = "BUS";     break;
+            case CH_MATRIX: chStr = "MATRIX";  break;
+            case CH_AUXIN:  chStr = "AUXIN";   break;
+            case CH_FXRTN:  chStr = "FXRTN";   break;
+            case CH_MAIN:   chStr = "MAIN";    break;
+            case CH_MONO:   chStr = "MONO";    break;
+            default:        chStr = "?";       break;
         }
-        DBG_PRINTF("[Mixer] /batchsubscribe alias=%-5s  blob_idx=%-3d  (T%u %s#%u)\n",
-                   alias.c_str(), (int)chId, n, chStr2, t.channelNumber);
+        DBG_PRINTF("[Mixer] /batchsubscribe  T%u  alias=%-5s  channelId=%-3d  (%s#%u)\n",
+                   n, alias.c_str(), (int)chId, chStr, t.channelNumber);
     }
 }
 
@@ -221,27 +226,25 @@ void MixerConnection::processIncoming() {
                 // Mute state: /mix/on → 1 = active, 0 = muted
                 level = (float)msg.intVal;
             } else if (msg.typeTag == 'b') {
-                // Blob from /batchsubscribe — Da wir nur EINEN Kanal auf /meters/6 
-                // abonniert haben, enthält der Blob genau 4 Werte für diesen Kanal:
-                // 0=Pre-Fade, 1=Gate, 2=Gain Reduction, 3=Post-Fade.
-                uint32_t chIdx = (_meterChannelIds[n] >= 0) ? (uint32_t)_meterChannelIds[n] : 0;
-                
-                // KORREKTUR: Wir fragen explizit Index 0 (Pre-Fade) ab, genau wie im MWE.
-                // (Wenn du Post-Fade bevorzugst, ändere die 0 zu einer 3).
-                level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read, msg.blobArgOffset, 0);
+                // Channel-strip meter blob from this trigger's /batchsubscribe.
+                // Because each trigger owns a unique alias ("/mtN"), the blob holds
+                // ONLY the 4 floats of that trigger's channel (see config.h):
+                //   0=pre-fade, 1=gate, 2=gain-reduction, 3=post-fade.
+                uint32_t tap = Config.triggers[n].meterSignalType;
 
-                /* * Fun Fact: Deine OSCHandler::parse() Funktion extrahiert den 
-                 * allerersten Float (Index 0) ohnehin schon standardmäßig in msg.floatVal!
-                 * Du könntest also statt extractMeterFloat() sogar einfach schreiben:
-                 * level = msg.floatVal; 
-                 */
+                level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
+                                                      msg.blobArgOffset, tap);
 
                 // Throttled debug: at most once per 2 s per trigger
                 uint32_t nowDbg = millis();
                 if (nowDbg - _lastBlobDebugMs[n] >= 2000) {
                     _lastBlobDebugMs[n] = nowDbg;
-                    DBG_PRINTF("[Mixer] T%u blob: alias=%-5s  blob_idx=%-3u  level=%.4f  pkt=%d bytes\n",
-                               n, _triggerPaths[n].c_str(), chIdx, level, read);
+                    DBG_PRINTF("[Mixer] T%u meter: alias=%-5s  ch=%-3d  tap=%-4s  level=%.4f  pkt=%d bytes\n",
+                               n, _triggerPaths[n].c_str(), (int)_meterChannelIds[n],
+                               Config.triggers[n].meterSignalType == 0 ? "pre" : 
+                               Config.triggers[n].meterSignalType == 3 ? "post" : 
+                               Config.triggers[n].meterSignalType == 2 ? "dynamics GR" : "gate GR",
+                               level, read);
                 }
             }
 

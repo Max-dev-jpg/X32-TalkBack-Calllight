@@ -97,10 +97,17 @@ size_t OSCHandler::buildStringMsg(const String& address,
     return offset;
 }
 
-// /batchsubscribe ,ssiii  <alias> /meters/6 <channelId> 0 <tf>
-// Per X32/M32 OSC Command Reference: subscribes to a single channel on
-// /meters/6. Responses arrive as OSC messages addressed to <alias>.
-// The subscription expires after 10 s; renew with /renew ,s <alias>.
+// Build a "/batchsubscribe ,ssiii <alias> /meters/6 <channelId> 0 <tf>" request.
+//
+// Per the X32/M32 OSC protocol this subscribes to the channel-strip meter of a
+// SINGLE channel. The console then streams a small OSC blob — addressed to
+// <alias> — containing exactly 4 little-endian floats for that channel
+// (pre-fade, gate, gain-reduction, post-fade). The two ints after the meter path
+// are the channel id and an unused "skip" value (0); <tf> is the time factor
+// controlling the update rate (smaller = more frequent, e.g. 0 ≈ 200 updates/10s).
+//
+// The subscription lasts ~10 s and must be renewed (resend it, or send
+// "/renew ,s <alias>") to keep receiving updates.
 size_t OSCHandler::buildBatchSubscribe(const String& alias,
                                         int32_t channelId, int32_t tf,
                                         uint8_t* buf, size_t bufLen) {
@@ -180,7 +187,7 @@ OSCMessage OSCHandler::parse(const uint8_t* buf, size_t len) {
             //     [offset + 0..3]: blob byte count (BE int32)
             //     [offset + 4..]: LE float32 values directly
             // extractMeterFloat() handles both; floatVal and intVal are set for
-            // quick access to the first float (channel 0) and float count.
+            // quick access to the first float and the total float count.
             msg.blobArgOffset = offset;  // save raw position for extractMeterFloat()
             if (offset + 4 <= len) {
                 uint32_t byteCount = (uint32_t)readBEInt(buf + offset);
@@ -211,7 +218,7 @@ OSCMessage OSCHandler::parse(const uint8_t* buf, size_t len) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// extractMeterFloat — read a specific channel from an X32 meter blob
+// extractMeterFloat — read one float value (by index) from an X32 meter blob
 // ─────────────────────────────────────────────────────────────────────────────
 
 float OSCHandler::extractMeterFloat(const uint8_t* buf, size_t bufLen,

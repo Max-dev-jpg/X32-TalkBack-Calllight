@@ -16,6 +16,7 @@ struct TriggerConfig {
                                 // CH_AUXIN / CH_FXRTN / CH_MAIN / CH_MONO
     uint8_t  channelNumber;     // 1-based; unused for CH_MAIN / CH_MONO
     uint8_t  signalSource;      // SIG_FADER / SIG_METER / SIG_MUTE
+    uint8_t  meterSignalType;     // Prefader / Gate GR / Dynamics GR / Postfader (SIG_METER only)
     char     customOSCPath[64]; // overrides auto-built path when non-empty
     // ── Signal processing ────────────────────────────────────────────────────
     float    threshold;

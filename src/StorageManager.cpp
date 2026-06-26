@@ -38,6 +38,7 @@ bool StorageManager::save(const DeviceConfig& c) {
         snprintf(key, sizeof(key), "t%u_ct",   n); _prefs.putUChar (key, t.channelType);
         snprintf(key, sizeof(key), "t%u_cn",   n); _prefs.putUChar (key, t.channelNumber);
         snprintf(key, sizeof(key), "t%u_ss",   n); _prefs.putUChar (key, t.signalSource);
+        snprintf(key, sizeof(key), "t%u_mpf",  n); _prefs.putULong  (key, t.meterSignalType);
         snprintf(key, sizeof(key), "t%u_pth",  n); _prefs.putString(key, t.customOSCPath);
         snprintf(key, sizeof(key), "t%u_thr",  n); _prefs.putFloat (key, t.threshold);
         snprintf(key, sizeof(key), "t%u_hyst", n); _prefs.putFloat (key, t.hysteresis);
@@ -117,6 +118,7 @@ bool StorageManager::load(DeviceConfig& c) {
         snprintf(key, sizeof(key), "t%u_ct",   n); t.channelType   = _prefs.getUChar (key, t.channelType);
         snprintf(key, sizeof(key), "t%u_cn",   n); t.channelNumber = _prefs.getUChar (key, t.channelNumber);
         snprintf(key, sizeof(key), "t%u_ss",   n); t.signalSource  = _prefs.getUChar (key, t.signalSource);
+        snprintf(key, sizeof(key), "t%u_mpf",  n); t.meterSignalType = _prefs.getULong  (key, t.meterSignalType);
         snprintf(key, sizeof(key), "t%u_pth",  n); strlcpy(t.customOSCPath, _prefs.getString(key, t.customOSCPath).c_str(), sizeof(t.customOSCPath));
         snprintf(key, sizeof(key), "t%u_thr",  n); t.threshold     = _prefs.getFloat (key, t.threshold);
         snprintf(key, sizeof(key), "t%u_hyst", n); t.hysteresis    = _prefs.getFloat (key, t.hysteresis);

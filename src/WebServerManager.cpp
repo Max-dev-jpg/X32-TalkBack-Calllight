@@ -90,6 +90,7 @@ static String buildConfigJSON() {
         to["channelType"]   = t.channelType;
         to["channelNumber"] = t.channelNumber;
         to["signalSource"]  = t.signalSource;
+        to["meterSignalType"] = t.meterSignalType;
         to["customOSCPath"] = t.customOSCPath;
         to["threshold"]     = t.threshold;
         to["hysteresis"]    = t.hysteresis;
@@ -192,6 +193,7 @@ static bool applyConfigJSON(const String& body) {
             if (to.containsKey("channelType"))     t.channelType   = to["channelType"];
             if (to.containsKey("channelNumber"))   t.channelNumber = to["channelNumber"];
             if (to.containsKey("signalSource"))    t.signalSource  = to["signalSource"];
+            if (to.containsKey("meterSignalType"))  t.meterSignalType = to["meterSignalType"];
             if (to.containsKey("customOSCPath"))   strlcpy(t.customOSCPath, to["customOSCPath"], sizeof(t.customOSCPath));
             if (to.containsKey("threshold"))       t.threshold     = to["threshold"];
             if (to.containsKey("hysteresis"))      t.hysteresis    = to["hysteresis"];

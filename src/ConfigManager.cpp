@@ -110,11 +110,17 @@ String ConfigManager::buildOSCPathForTrigger(const TriggerConfig& t) const
     if (t.customOSCPath[0] != '\0')
         return String(t.customOSCPath);
 
-    // Meter: uses /batchsubscribe — return a display-only representation
+    // Meter: shared full-bank /batchsubscribe — display-only representation.
+    // Postfader uses the single-channel /meters/6 strip (see MixerConnection).
     if (t.signalSource == SIG_METER) {
-        int32_t ch = meterChannelId(t);
-        if (ch < 0) return String("/meters/N_A");
-        return String("/meters/6[ch=") + ch + "]";
+        if (t.meterSignalType == 3) {              // postfader
+            int32_t ch = meterChannelId(t);
+            if (ch < 0) return String("/meters/N_A");
+            return String("/meters/6[ch=") + ch + " post]";
+        }
+        uint8_t bank; uint32_t idx;
+        if (!meterBankIndex(t, bank, idx)) return String("/meters/N_A");
+        return String("/meters/") + bank + "[idx=" + idx + "]";
     }
 
     const bool isMute = (t.signalSource == SIG_MUTE);
@@ -170,5 +176,41 @@ int32_t ConfigManager::meterChannelId(const TriggerConfig& t) const
         case CH_MAIN:   return 70;
         case CH_MONO:   return 71;
         default:        return -1; // DCA and unknown types not supported
+    }
+}
+
+// =============================================================================
+// meterBankIndex — map a trigger to (meter bank, float index within that bank).
+// Layouts from the X32/M32 OSC Command Reference (p.12-13):
+//
+//   /meters/0  (70 floats): 32 input | 8 auxin | 8 fxrtn | 16 bus | 6 matrix
+//   /meters/1  (96 floats): 32 input level | 32 gate-GR | 32 dynamics-GR
+//   /meters/2  (49 floats): 16 bus | 6 matrix | 2 main LR | 1 mono | (then GRs)
+//
+// Input channels use /meters/1 so the pre/gate-GR/dyn-GR tap (meterSignalType)
+// stays meaningful. NOTE: /meters/1 has only ONE input level (no separate
+// pre/post), so meterSignalType 0 (pre) and 3 (post) both map to that level.
+// =============================================================================
+bool ConfigManager::meterBankIndex(const TriggerConfig& t,
+                                   uint8_t& bank, uint32_t& idx) const
+{
+    const uint32_t ch = (t.channelNumber > 0) ? (uint32_t)(t.channelNumber - 1) : 0;
+
+    switch (t.channelType) {
+        case CH_INPUT:
+            bank = 1;
+            switch (t.meterSignalType) {
+                case 1:  idx = 32 + ch; break;   // gate gain reduction
+                case 2:  idx = 64 + ch; break;   // dynamics gain reduction
+                default: idx =      ch; break;   // pre/post → input channel level
+            }
+            return true;
+        case CH_AUXIN:  bank = 0; idx = 32 + ch; return true;  // /meters/0
+        case CH_FXRTN:  bank = 0; idx = 40 + ch; return true;
+        case CH_BUS:    bank = 0; idx = 48 + ch; return true;
+        case CH_MATRIX: bank = 0; idx = 64 + ch; return true;
+        case CH_MAIN:   bank = 2; idx = 22;      return true;  // /meters/2 Main L
+        case CH_MONO:   bank = 2; idx = 24;      return true;  // /meters/2 Mono M/C
+        default:        return false;                          // DCA unsupported
     }
 }

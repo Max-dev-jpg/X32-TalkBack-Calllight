@@ -38,15 +38,20 @@ public:
     static size_t buildIntMsg(const String& address, int32_t value,
                               uint8_t* buf, size_t bufLen);
 
-    // Build a /batchsubscribe message for a single-channel meter subscription
-    // (X32/M32 OSC Command Reference)
-    // Format: /batchsubscribe ,ssiii <alias> /meters/6 <channelId> 0 <tf>
-    //   alias     – OSC address of subscription responses (e.g. "/mt0")
-    //   channelId – 0-based channel index on /meters/6
-    //   tf        – update frames (1 frame = 5 ms; tf=10 → 50 ms updates)
-    // Subscription lasts 10 s; renew with buildStringMsg("/renew", alias).
-    static size_t buildBatchSubscribe(const String& alias,
-                                      int32_t channelId, int32_t tf,
+    // Build a /batchsubscribe message for a meter-bank subscription
+    // (X32/M32 OSC Command Reference, p.7/12).
+    // Format: /batchsubscribe ,ssiii <alias> <path> <iStart> <iEnd> <tf>
+    //   alias  – OSC address the responses are returned with (e.g. "/m0")
+    //   path   – meter bank, e.g. "/meters/0"
+    //   iStart – first 0-based float index within the bank
+    //   iEnd   – last 0-based float index, INCLUSIVE (e.g. /meters/0: 0..69)
+    //   tf     – frequency factor (1 ≈ 50 ms updates)
+    // Subscription lasts ~10 s; resend (or /renew ,s <alias>) to keep it alive.
+    // NOTE: iEnd is an inclusive index range, NOT a count. /meters/6's
+    // per-channel selection is NOT available this way — use a full-bank index
+    // range (/meters/0,1,2) and pick the channel's float by index instead.
+    static size_t buildBatchSubscribe(const String& alias, const String& path,
+                                      int32_t iStart, int32_t iEnd, int32_t tf,
                                       uint8_t* buf, size_t bufLen);
 
     // Parse a raw UDP buffer into an OSCMessage struct

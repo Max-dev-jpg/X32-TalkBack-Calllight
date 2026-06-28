@@ -111,6 +111,14 @@ public:
     // Returns -1 if the channel type does not support meter subscription (e.g. DCA)
     int32_t meterChannelId(const TriggerConfig& t) const;
 
+    // Resolve which /meters bank + float index hold this trigger's meter level.
+    // Uses full-bank subscriptions (no /meters/6 single-channel collision):
+    //   bank 0 (/meters/0): AuxIn/FxRtn/Bus/Matrix levels (and Input level)
+    //   bank 1 (/meters/1): Input level + gate-GR + dynamics-GR (tap-dependent)
+    //   bank 2 (/meters/2): Main L/R and Mono M/C levels
+    // Returns false for unsupported channel types (e.g. DCA).
+    bool meterBankIndex(const TriggerConfig& t, uint8_t& bank, uint32_t& idx) const;
+
     // Direct access to the config struct
     DeviceConfig&       cfg()       { return _cfg; }
     const DeviceConfig& cfg() const { return _cfg; }

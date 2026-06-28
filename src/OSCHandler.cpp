@@ -97,26 +97,31 @@ size_t OSCHandler::buildStringMsg(const String& address,
     return offset;
 }
 
-// Build a "/batchsubscribe ,ssiii <alias> /meters/6 <channelId> 0 <tf>" request.
+// Build a "/batchsubscribe ,ssiii <alias> <path> <iStart> <iEnd> <tf>" request.
 //
-// Per the X32/M32 OSC protocol this subscribes to the channel-strip meter of a
-// SINGLE channel. The console then streams a small OSC blob — addressed to
-// <alias> — containing exactly 4 little-endian floats for that channel
-// (pre-fade, gate, gain-reduction, post-fade). The two ints after the meter path
-// are the channel id and an unused "skip" value (0); <tf> is the time factor
-// controlling the update rate (smaller = more frequent, e.g. 0 ≈ 200 updates/10s).
+// Per the X32/M32 OSC protocol (doc p.7/12) this subscribes to a contiguous
+// index range [iStart..iEnd] (INCLUSIVE) of a meter bank. The console streams an
+// OSC blob — addressed to <alias> — containing (iEnd - iStart + 1) little-endian
+// floats, about every 50 ms for ~10 s. <tf> is the frequency factor.
 //
-// The subscription lasts ~10 s and must be renewed (resend it, or send
-// "/renew ,s <alias>") to keep receiving updates.
-size_t OSCHandler::buildBatchSubscribe(const String& alias,
-                                        int32_t channelId, int32_t tf,
+// Example from the doc: "/x_meters_0 /meters/0 0 69 1" → blob of 70 floats.
+//
+// IMPORTANT: iEnd is an inclusive index, NOT a count. The per-channel selection
+// of /meters/6 does NOT work through /batchsubscribe (it has no channel-id slot,
+// and a single global selection is shared across all subscribers — which made
+// multiple /meters/6 subscriptions all report the same channel). Subscribe to a
+// full bank (/meters/0,1,2) instead and pick each channel's float by index.
+//
+// The subscription must be renewed (resend it, or "/renew ,s <alias>").
+size_t OSCHandler::buildBatchSubscribe(const String& alias, const String& path,
+                                        int32_t iStart, int32_t iEnd, int32_t tf,
                                         uint8_t* buf, size_t bufLen) {
     memset(buf, 0, bufLen);
     size_t offset = 0;
     offset = writeOSCString(buf, offset, bufLen, "/batchsubscribe");
     offset = writeOSCString(buf, offset, bufLen, ",ssiii");
     offset = writeOSCString(buf, offset, bufLen, alias);
-    offset = writeOSCString(buf, offset, bufLen, "/meters/6");
+    offset = writeOSCString(buf, offset, bufLen, path);
 
     auto writeInt = [&](int32_t value) {
         if (offset + 4 <= bufLen) {
@@ -126,9 +131,9 @@ size_t OSCHandler::buildBatchSubscribe(const String& alias,
             buf[offset++] = (uint8_t)( value        & 0xFF);
             }
     };
-    writeInt(channelId);
-    writeInt(0);       // skip = 0 (contiguous channel selection)
-    writeInt(tf);      // tf frames (1 frame = 5 ms; tf=10 → 50 ms)
+    writeInt(iStart);
+    writeInt(iEnd);    // inclusive last index
+    writeInt(tf);      // frequency factor (1 ≈ 50 ms updates)
     return offset;
 }
 

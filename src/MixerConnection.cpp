@@ -9,6 +9,27 @@
 #include <Arduino.h>
 #include <WiFi.h>
 
+// ── Shared meter-bank subscriptions ────────────────────────────────────────────
+// One full-bank subscription per used bank; the console returns the blob with the
+// alias as its OSC address. iEnd is the INCLUSIVE last float index of the bank.
+namespace {
+    const char* const kMeterAlias[3] = { "/m0", "/m1", "/m2" };
+    const char* const kMeterPath [3] = { "/meters/0", "/meters/1", "/meters/2" };
+    const int32_t     kMeterIEnd [3] = { 69, 95, 48 };  // 70 / 96 / 49 floats
+
+    const char* const kM6Alias = "/m6";          // single /meters/6 channel strip
+    const char* const kM6Path  = "/meters/6";
+
+    // Map an incoming OSC address back to a meter-bank id: 0..2 for the full
+    // banks, 3 (METER_BANK_M6) for /meters/6, or -1 if it is not a meter alias.
+    int meterBankFromAlias(const String& addr) {
+        for (int b = 0; b < 3; b++)
+            if (addr == kMeterAlias[b]) return b;
+        if (addr == kM6Alias) return 3;
+        return -1;
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 void MixerConnection::begin() {
@@ -30,9 +51,11 @@ void MixerConnection::begin() {
         // Perform an immediate handshake/query so the mixer starts pushing updates
         // and the connected flag can be confirmed without waiting for the first loop.
         sendXRemote();
-        sendMeterSubscriptions();
+        sendMeterSubscriptions();   // register the fresh meter set
         sendFaderMuteQueries();
         uint32_t now = millis();
+        _meterRegistered  = true;
+        _lastMeterRxMs    = now;
         _lastXRemoteMs    = now;
         _lastKeepaliveMs  = now;
         _lastReconnectMs  = now;
@@ -42,29 +65,66 @@ void MixerConnection::begin() {
 
 void MixerConnection::reconnect() {
     DBG_PRINTLN("[Mixer] Reconnecting...");
-    if (_udpOpen) { _udp.stop(); _udpOpen = false; }
-    _lastXRemoteMs  = 0;   // force immediate xremote + queries on next loop()
-    _lastResponseMs = 0;
-    _connected      = false;
+    if (_udpOpen) {
+        unsubscribeAllMeters();      // drop stale subs (e.g. old /meters/6 channel)
+        _udp.stop();
+        _udpOpen = false;
+    }
+    _lastXRemoteMs   = 0;   // force immediate xremote + queries on next loop()
+    _lastResponseMs  = 0;
+    _connected       = false;
+    _meterRegistered = false;
     begin();
 }
 
 // ── Rebuild resolved path / alias strings ─────────────────────────────────────
 
 void MixerConnection::rebuildPaths() {
+    for (uint8_t b = 0; b < METER_BANK_COUNT; b++) _meterBankUsed[b] = false;
+    _m6Owner     = 0xFF;
+    _m6ChannelId = -1;
+
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         const TriggerConfig& t = Config.triggers[n];
-        _meterChannelIds[n] = -1;
+        _meterBank[n]    = 0xFF;
+        _meterIndex[n]   = 0;
+        _meterBlocked[n] = false;
         if (!t.enabled) {
             _triggerPaths[n] = "";
             continue;
         }
         if (t.signalSource == SIG_METER) {
-            // Meter triggers subscribe via /batchsubscribe; the console's replies
-            // are addressed to our per-trigger alias (e.g. "/mt0"), so we match on
-            // that alias instead of a real mixer path.
-            _triggerPaths[n]    = String("/mt") + n;
-            _meterChannelIds[n] = ConfigManager::instance().meterChannelId(t);
+            // Meters use no _triggerPaths entry; the fader/mute matcher ignores
+            // them. Postfader (meterSignalType == 3) is only available from the
+            // single-channel strip /meters/6 — at most one trigger can own it.
+            // Everything else reads from the shared full banks /meters/0,1,2.
+            _triggerPaths[n] = "";
+            const bool wantsPost = (t.meterSignalType == 3);
+
+            if (wantsPost) {
+                int32_t chId = ConfigManager::instance().meterChannelId(t);
+                if (chId < 0) {
+                    // e.g. DCA — no meter at all
+                } else if (_m6Owner == 0xFF) {
+                    _m6Owner       = n;
+                    _m6ChannelId   = chId;
+                    _meterBank[n]  = METER_BANK_M6;
+                    _meterIndex[n] = 3;            // post-fade float in the strip
+                } else {
+                    _meterBlocked[n] = true;       // /meters/6 already taken
+                }
+            } else {
+                uint8_t bank; uint32_t idx;
+                if (ConfigManager::instance().meterBankIndex(t, bank, idx)) {
+                    _meterBank[n]  = bank;
+                    _meterIndex[n] = idx;
+                    _meterBankUsed[bank] = true;
+                }
+            }
+
+            // No live meter source (blocked or unsupported type): force the level
+            // to 0 so a stale value can't keep the trigger active.
+            if (_meterBank[n] == 0xFF) _triggerLevels[n] = 0.0f;
         } else {
             _triggerPaths[n] = ConfigManager::instance().buildOSCPathForTrigger(t);
         }
@@ -93,9 +153,21 @@ void MixerConnection::rebuildPaths() {
             default:        chStr = "UNKNOWN"; break;
         }
         if (t.signalSource == SIG_METER) {
-            DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  alias=%-6s  blob_idx=%d\n",
-                       n, sigStr, chStr, t.channelNumber,
-                       _triggerPaths[n].c_str(), (int)_meterChannelIds[n]);
+            if (_meterBank[n] == METER_BANK_M6) {
+                DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  /meters/6 ch=%d idx=%u (POST)\n",
+                           n, sigStr, chStr, t.channelNumber,
+                           (int)_m6ChannelId, (unsigned)_meterIndex[n]);
+            } else if (_meterBlocked[n]) {
+                DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  BLOCKED (/meters/6 already in use)\n",
+                           n, sigStr, chStr, t.channelNumber);
+            } else if (_meterBank[n] != 0xFF) {
+                DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  /meters/%u idx=%u\n",
+                           n, sigStr, chStr, t.channelNumber,
+                           _meterBank[n], (unsigned)_meterIndex[n]);
+            } else {
+                DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  (no meter for this type)\n",
+                           n, sigStr, chStr, t.channelNumber);
+            }
         } else {
             const char* custom = (t.customOSCPath[0] != '\0') ? " (custom)" : "";
             DBG_PRINTF("[Mixer]   T%u: %-6s  ch=%-6s #%-2u  path=%s%s\n",
@@ -103,6 +175,9 @@ void MixerConnection::rebuildPaths() {
                        _triggerPaths[n].c_str(), custom);
         }
     }
+    DBG_PRINTF("[Mixer]   meter banks used: /meters/0=%d  /meters/1=%d  /meters/2=%d  /meters/6=%s\n",
+               _meterBankUsed[0], _meterBankUsed[1], _meterBankUsed[2],
+               (_m6Owner != 0xFF) ? "yes" : "no");
     DBG_PRINTLN("[Mixer] ─────────────────────────────────────────────────");
 }
 
@@ -133,44 +208,65 @@ void MixerConnection::sendFaderMuteQueries() {
     }
 }
 
-// Subscribe (or renew the subscription) to the channel-strip meter for every
-// enabled SIG_METER trigger. Each trigger gets its OWN subscription, identified
-// by a unique alias ("/mt0".."/mt3"), so the X32 streams an independent blob per
-// trigger — that is what keeps two meter triggers on different channels apart.
-// Subscriptions expire after ~10 s and are refreshed on the /xremote cadence
-// (XREMOTE_INTERVAL_MS).
+// Register (or re-register) every meter subscription needed by the enabled
+// SIG_METER triggers. Whole banks (/meters/0,1,2) are subscribed once each and
+// every trigger picks its channel out of the shared blob by index — this avoids
+// the /meters/6 collision (the console keeps only ONE global channel selection,
+// so multiple /meters/6 subs would all report the same channel). The single
+// permitted postfader trigger gets that one /meters/6 channel-strip sub.
+// Subscriptions expire after ~10 s; renewMeterSubscriptions() keeps them alive.
 void MixerConnection::sendMeterSubscriptions() {
     if (!_udpOpen) return;
-    for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
-        const TriggerConfig& t = Config.triggers[n];
-        if (!t.enabled || t.signalSource != SIG_METER) continue;
 
-        int32_t chId = ConfigManager::instance().meterChannelId(t);
-        if (chId < 0) continue; // e.g. DCA: no channel-strip meter on /meters/6
+    for (uint8_t b = 0; b < METER_BANK_COUNT; b++) {
+        if (!_meterBankUsed[b]) continue;
 
-        // alias "/mtN" routes the replies back to trigger n; tf=1 → frequent
-        // updates (see OSCHandler::buildBatchSubscribe()).
-        const String alias = String("/mt") + n;
-        size_t len = OSCHandler::buildBatchSubscribe(alias, chId, 1,
-                                                     _txBuf, sizeof(_txBuf));
+        size_t len = OSCHandler::buildBatchSubscribe(
+            kMeterAlias[b], kMeterPath[b], 0, kMeterIEnd[b], 1,
+            _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);
         _udp.endPacket();
 
-        const char* chStr;
-        switch (t.channelType) {
-            case CH_INPUT:  chStr = "INPUT";   break;
-            case CH_BUS:    chStr = "BUS";     break;
-            case CH_MATRIX: chStr = "MATRIX";  break;
-            case CH_AUXIN:  chStr = "AUXIN";   break;
-            case CH_FXRTN:  chStr = "FXRTN";   break;
-            case CH_MAIN:   chStr = "MAIN";    break;
-            case CH_MONO:   chStr = "MONO";    break;
-            default:        chStr = "?";       break;
-        }
-        DBG_PRINTF("[Mixer] /batchsubscribe  T%u  alias=%-5s  channelId=%-3d  (%s#%u)\n",
-                   n, alias.c_str(), (int)chId, chStr, t.channelNumber);
+        DBG_PRINTF("[Mixer] /batchsubscribe  %-4s %s 0 %d 1\n",
+                   kMeterAlias[b], kMeterPath[b], (int)kMeterIEnd[b]);
     }
+
+    if (_m6Owner != 0xFF && _m6ChannelId >= 0) {
+        // /meters/6: first int = channel_id, second unused, then time factor.
+        size_t len = OSCHandler::buildBatchSubscribe(
+            kM6Alias, kM6Path, _m6ChannelId, 0, 1, _txBuf, sizeof(_txBuf));
+        _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+        _udp.write(_txBuf, len);
+        _udp.endPacket();
+
+        DBG_PRINTF("[Mixer] /batchsubscribe  %-4s %s ch=%d 0 1  (T%u post)\n",
+                   kM6Alias, kM6Path, (int)_m6ChannelId, _m6Owner);
+    }
+}
+
+// Lightweight renewal of ALL active subscriptions (one /renew with no argument
+// resets the 10 s timer for every subscription registered by this client).
+void MixerConnection::renewMeterSubscriptions() {
+    if (!_udpOpen) return;
+    size_t len = OSCHandler::buildQuery("/renew", _txBuf, sizeof(_txBuf));
+    _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+    _udp.write(_txBuf, len);
+    _udp.endPacket();
+}
+
+// Stop ALL active subscriptions for this client (/unsubscribe with no argument).
+// Sent before re-registering a changed meter set and when tearing down the link,
+// so stale subscriptions (e.g. an old /meters/6 channel) stop immediately
+// instead of lingering for up to 10 s.
+void MixerConnection::unsubscribeAllMeters() {
+    if (!_udpOpen) return;
+    size_t len = OSCHandler::buildQuery("/unsubscribe", _txBuf, sizeof(_txBuf));
+    _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+    _udp.write(_txBuf, len);
+    _udp.endPacket();
+    _meterRegistered = false;
+    DBG_PRINTLN("[Mixer] /unsubscribe (all)");
 }
 
 // ── Incoming messages ─────────────────────────────────────────────────────────
@@ -214,9 +310,36 @@ void MixerConnection::processIncoming() {
                           fromIP.toString().c_str(), msg.address.c_str(), msg.typeTag);
         }
 
-        // Match the message address against each trigger's resolved path / alias
+        // ── Meter blob (shared /meters/0,1,2 bank or the /meters/6 strip) ─────
+        // One blob holds a whole bank; distribute it to every SIG_METER trigger
+        // that reads from this bank, each at its own float index.
+        if (msg.typeTag == 'b') {
+            int bank = meterBankFromAlias(msg.address);
+            if (bank >= 0) {
+                _lastMeterRxMs = millis();   // subscriptions are alive (self-heal)
+                for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
+                    if (_meterBank[n] != (uint8_t)bank) continue;   // 0xFF != bank
+                    float level = OSCHandler::extractMeterFloat(
+                        _rxBuf, (size_t)read, msg.blobArgOffset, _meterIndex[n]);
+                    _triggerLevels[n] = constrain(level, 0.0f, 1.0f);
+
+                    // Throttled per-trigger debug: once per second
+                    uint32_t nowDbg = millis();
+                    if (nowDbg - _lastBlobDebugMs[n] >= 1000) {
+                        _lastBlobDebugMs[n] = nowDbg;
+                        DBG_PRINTF("[Mixer] T%u METER  /meters/%d idx=%-3u  "
+                                   "floats=%d  level=%.4f\n",
+                                   n, bank, (unsigned)_meterIndex[n],
+                                   (int)msg.intVal, _triggerLevels[n]);
+                    }
+                }
+                continue;   // meter blob handled; skip fader/mute matching
+            }
+        }
+
+        // ── Fader / mute (one value per resolved path) ────────────────────────
         for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
-            if (_triggerPaths[n].length() == 0) continue;
+            if (_triggerPaths[n].length() == 0) continue;   // meters use no path
             if (msg.address != _triggerPaths[n])  continue;
 
             float level = 0.0f;
@@ -225,31 +348,8 @@ void MixerConnection::processIncoming() {
             } else if (msg.typeTag == 'i') {
                 // Mute state: /mix/on → 1 = active, 0 = muted
                 level = (float)msg.intVal;
-            } else if (msg.typeTag == 'b') {
-                // Channel-strip meter blob from this trigger's /batchsubscribe.
-                // Because each trigger owns a unique alias ("/mtN"), the blob holds
-                // ONLY the 4 floats of that trigger's channel (see config.h):
-                //   0=pre-fade, 1=gate, 2=gain-reduction, 3=post-fade.
-                uint32_t tap = Config.triggers[n].meterSignalType;
-
-                level = OSCHandler::extractMeterFloat(_rxBuf, (size_t)read,
-                                                      msg.blobArgOffset, tap);
-
-                // Throttled debug: at most once per 2 s per trigger
-                uint32_t nowDbg = millis();
-                if (nowDbg - _lastBlobDebugMs[n] >= 2000) {
-                    _lastBlobDebugMs[n] = nowDbg;
-                    DBG_PRINTF("[Mixer] T%u meter: alias=%-5s  ch=%-3d  tap=%-4s  level=%.4f  pkt=%d bytes\n",
-                               n, _triggerPaths[n].c_str(), (int)_meterChannelIds[n],
-                               Config.triggers[n].meterSignalType == 0 ? "pre" : 
-                               Config.triggers[n].meterSignalType == 3 ? "post" : 
-                               Config.triggers[n].meterSignalType == 2 ? "dynamics GR" : "gate GR",
-                               level, read);
-                }
             }
-
-            level = constrain(level, 0.0f, 1.0f);
-            _triggerLevels[n] = level;
+            _triggerLevels[n] = constrain(level, 0.0f, 1.0f);
         }
     }
 }
@@ -261,14 +361,27 @@ void MixerConnection::loop() {
 
     if (Config.mixerIP[0] == '\0') return;
 
-    // Every XREMOTE_INTERVAL_MS:
-    //   • Renew /xremote so the X32 keeps pushing parameter changes for 10 s
-    //   • Renew /batchsubscribe for any meter-mode triggers
+    // Every XREMOTE_INTERVAL_MS (< 10 s subscription timeout):
+    //   • Renew /xremote so the X32 keeps pushing parameter changes
+    //   • Keep meter subscriptions alive: a lightweight /renew normally, but
+    //     re-register the full set if we never registered, or if no meter blob
+    //     has arrived for >10 s (the console may have dropped a missed renew)
     //   • Send one-shot fader/mute queries to refresh current state
     //     (between renewals the X32 pushes changes via /xremote subscription)
     if (now - _lastXRemoteMs >= XREMOTE_INTERVAL_MS) {
         sendXRemote();
-        sendMeterSubscriptions();
+
+        const bool anyMeter = _meterBankUsed[0] || _meterBankUsed[1] ||
+                              _meterBankUsed[2] || (_m6Owner != 0xFF);
+        if (anyMeter) {
+            if (_meterRegistered && (now - _lastMeterRxMs < 10000)) {
+                renewMeterSubscriptions();      // light: /renew all
+            } else {
+                sendMeterSubscriptions();       // (re)register full set
+                _meterRegistered = true;
+            }
+        }
+
         sendFaderMuteQueries();   // initial sync; X32 pushes changes between renewals
         _lastXRemoteMs = now;
     }

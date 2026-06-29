@@ -447,12 +447,12 @@ void WebServerManager::broadcastOSCMonitor() {
         const TriggerConfig& tc = Config.triggers[n];
         JsonObject m = arr.createNestedObject();
         m["n"]      = n;
-        // Display the resolved source: "/meters/<bank>[idx=N]" for meter mode,
-        // or the real OSC path on the mixer for fader/mute. A postfader trigger
-        // blocked by the single /meters/6 slot is flagged explicitly.
+        // Display the resolved source: "/meters/<bank>[…]" for meter mode, or the
+        // real OSC path on the mixer for fader/mute. A post-fader trigger blocked
+        // because the single /meters/6 channel is taken is flagged explicitly.
         if (tc.signalSource == SIG_METER && tc.enabled &&
             MixerConnection::instance().isMeterBlocked(n)) {
-            m["address"] = String("/meters/6 BLOCKED (in use)");
+            m["address"] = String("/meters/6 BLOCKED (channel busy)");
         } else {
             m["address"] = ConfigManager::instance().buildOSCPathForTrigger(tc);
         }

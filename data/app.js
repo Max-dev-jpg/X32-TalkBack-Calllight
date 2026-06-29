@@ -44,6 +44,51 @@ for (let n = 0; n < NUM_TRIGGERS; n++) {
 
 // ── Channel type → update max channel number + disable Meter for DCA ─────────
 const CH_MAX = { 0:32, 1:16, 2:6, 3:8, 4:8, 5:8, 6:0, 7:0 };
+
+// Meter tap (meterSignalType) labels. 0=pre, 1=gate-GR, 2=comp-GR, 3=post.
+const METER_TAPS = {
+  0: 'Pre-Fader',
+  1: 'Gate Gain-Reduction',
+  2: 'Comp Gain-Reduction',
+  3: 'Post-Fader',
+};
+
+// Which meter taps actually return data per channel type (X32 metering reality,
+// confirmed live). Pre/Comp are multi-channel from the full banks; Post comes
+// from the /meters/6 round-robin scanner (works for any number of channels, but
+// several Post channels share update rate). Gate-GR exists for inputs only;
+// Main's natural bulk meter is Post (its Pre uses the scanner). DCA has no meter.
+//   tap values: 0=pre, 1=gate, 2=comp, 3=post
+const METER_TAPS_BY_CHTYPE = {
+  0: [0, 3, 2, 1],   // CH_INPUT : pre, post, comp, gate
+  1: [0, 3, 2],      // CH_BUS   : pre, post, comp
+  2: [0, 3, 2],      // CH_MATRIX
+  3: [],             // CH_DCA   : none
+  4: [0, 3],         // CH_AUXIN : pre, post
+  5: [0, 3],         // CH_FXRTN : pre, post
+  6: [3, 0, 2],      // CH_MAIN  : post, pre, comp
+  7: [0, 3, 2],      // CH_MONO  : pre, post, comp
+};
+
+// Rebuild the meter-tap <select> so it only offers taps that work for the
+// current channel type. Keeps the current selection if still valid.
+function rebuildMeterTapOptions(n) {
+  const chType = parseInt(document.getElementById('t' + n + '-chtype').value) || 0;
+  const sel = document.getElementById('t' + n + '-metertap');
+  if (!sel) return;
+  const allowed = METER_TAPS_BY_CHTYPE[chType] || [];
+  const prev = parseInt(sel.value);
+  sel.innerHTML = '';
+  for (const v of allowed) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = METER_TAPS[v];
+    sel.appendChild(opt);
+  }
+  if (allowed.includes(prev))      sel.value = prev;
+  else if (allowed.length)         sel.value = allowed[0];
+}
+
 function onTrigChTypeChange(n) {
   const chType  = parseInt(document.getElementById('t' + n + '-chtype').value);
   const numLbl  = document.getElementById('t' + n + '-chnum-lbl');
@@ -66,6 +111,8 @@ function onTrigChTypeChange(n) {
       if (chType === 3 && parseInt(sigSrc.value) === 1) sigSrc.value = '0';
     }
   }
+
+  rebuildMeterTapOptions(n);   // offer only taps that work for this channel type
   onTrigSigSrcChange(n);
 }
 
@@ -259,8 +306,10 @@ function onTrigSigSrcChange(n) {
 // selector stays hidden in that case as well.
 function updateMeterTapVisibility(n) {
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+  const chType = parseInt(document.getElementById('t' + n + '-chtype').value) || 0;
   const lbl = document.getElementById('t' + n + '-metertap-lbl');
-  if (lbl) lbl.style.display = (sigSrc === 1) ? '' : 'none';
+  const hasTaps = (METER_TAPS_BY_CHTYPE[chType] || []).length > 0;
+  if (lbl) lbl.style.display = (sigSrc === 1 && hasTaps) ? '' : 'none';
 }
 
 // ── Per-trigger LED color helpers ─────────────────────────────────────────────

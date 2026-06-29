@@ -32,7 +32,12 @@ reboots and power loss. Settings are managed through the web interface.
 | `channelType` | `3` (DCA) | 0=Input, 1=Bus, 2=Matrix, 3=DCA |
 | `channelNumber` | `1` | Channel number (1-based) |
 | `signalSource` | `0` (Fader) | 0=Fader, 1=Meter, 2=Mute state |
+| `meterSignalType` | `0` (Pre) | Meter tap: 0=Pre, 1=Gate-GR, 2=Comp-GR, 3=Post |
 | `customOSCPath` | _(empty)_ | Override auto-generated path |
+
+> **Meter sources & taps:** which taps are available per channel type, and the
+> single-channel limit of post-fader metering, are documented in
+> [METERING.md](METERING.md).
 
 ---
 

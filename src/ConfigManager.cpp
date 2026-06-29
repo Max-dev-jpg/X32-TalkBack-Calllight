@@ -110,17 +110,16 @@ String ConfigManager::buildOSCPathForTrigger(const TriggerConfig& t) const
     if (t.customOSCPath[0] != '\0')
         return String(t.customOSCPath);
 
-    // Meter: shared full-bank /batchsubscribe — display-only representation.
-    // Postfader uses the single-channel /meters/6 strip (see MixerConnection).
+    // Meter: display-only representation of the resolved bank + index.
     if (t.signalSource == SIG_METER) {
-        if (t.meterSignalType == 3) {              // postfader
-            int32_t ch = meterChannelId(t);
-            if (ch < 0) return String("/meters/N_A");
-            return String("/meters/6[ch=") + ch + " post]";
-        }
         uint8_t bank; uint32_t idx;
-        if (!meterBankIndex(t, bank, idx)) return String("/meters/N_A");
-        return String("/meters/") + bank + "[idx=" + idx + "]";
+        if (!meterRoute(t, bank, idx)) return String("/meters/N_A");
+        static const char* TAP[4] = { "pre", "gate", "comp", "post" };
+        const char* tapStr = (t.meterSignalType < 4) ? TAP[t.meterSignalType] : "?";
+        if (bank == METER_ROUTE_M6) {              // /meters/6 scanner channel
+            return String("/meters/6[ch=") + meterChannelId(t) + " " + tapStr + "]";
+        }
+        return String("/meters/") + bank + "[idx=" + idx + " " + tapStr + "]";
     }
 
     const bool isMute = (t.signalSource == SIG_MUTE);
@@ -180,37 +179,64 @@ int32_t ConfigManager::meterChannelId(const TriggerConfig& t) const
 }
 
 // =============================================================================
-// meterBankIndex — map a trigger to (meter bank, float index within that bank).
-// Layouts from the X32/M32 OSC Command Reference (p.12-13):
+// meterRoute — map (channel type, tap) to (meter bank, float index).
+// Bank tap nature CONFIRMED live on the console:
 //
-//   /meters/0  (70 floats): 32 input | 8 auxin | 8 fxrtn | 16 bus | 6 matrix
-//   /meters/1  (96 floats): 32 input level | 32 gate-GR | 32 dynamics-GR
-//   /meters/2  (49 floats): 16 bus | 6 matrix | 2 main LR | 1 mono | (then GRs)
+//   /meters/0 (70): 32 input | 8 auxin | 8 fxrtn | 16 bus | 6 matrix  — PRE
+//   /meters/1 (96): 32 input PRE [0..31] | 32 gate-GR [32..63] | 32 comp-GR [64..95]
+//   /meters/2 (49): bus PRE [0..15] | mtx PRE [16..21] | main L/R POST [22,23]
+//                   | mono PRE [24] | bus-GR [25..40] | mtx-GR [41..46]
+//                   | main-GR [47] | mono-GR [48]
+//   /meters/6 (4) : ONE channel strip — [0]=pre [1]=gate [2]=comp [3]=post
 //
-// Input channels use /meters/1 so the pre/gate-GR/dyn-GR tap (meterSignalType)
-// stays meaningful. NOTE: /meters/1 has only ONE input level (no separate
-// pre/post), so meterSignalType 0 (pre) and 3 (post) both map to that level.
+// Post-fader exists in a bulk bank ONLY for Main L/R (/meters/2[22]). Every other
+// post-fader value comes from /meters/6 (single channel), served by the
+// round-robin scanner in MixerConnection. Likewise Main pre-fader is not in a
+// bulk bank, so it also uses /meters/6.
+//
+// tap (meterSignalType): 0=pre, 1=gate, 2=comp, 3=post.
 // =============================================================================
-bool ConfigManager::meterBankIndex(const TriggerConfig& t,
-                                   uint8_t& bank, uint32_t& idx) const
+bool ConfigManager::meterRoute(const TriggerConfig& t,
+                               uint8_t& bank, uint32_t& idx) const
 {
-    const uint32_t ch = (t.channelNumber > 0) ? (uint32_t)(t.channelNumber - 1) : 0;
+    const uint32_t i   = (t.channelNumber > 0) ? (uint32_t)(t.channelNumber - 1) : 0;
+    const uint8_t  tap = t.meterSignalType;
+    const uint8_t  M6  = METER_ROUTE_M6;
 
     switch (t.channelType) {
-        case CH_INPUT:
-            bank = 1;
-            switch (t.meterSignalType) {
-                case 1:  idx = 32 + ch; break;   // gate gain reduction
-                case 2:  idx = 64 + ch; break;   // dynamics gain reduction
-                default: idx =      ch; break;   // pre/post → input channel level
+        case CH_INPUT:   // /meters/1 multi-channel for pre/gate/comp; post -> /m6
+            switch (tap) {
+                case 0: bank = 1; idx =      i; return true;  // pre
+                case 1: bank = 1; idx = 32 + i; return true;  // gate GR
+                case 2: bank = 1; idx = 64 + i; return true;  // comp GR
+                case 3: bank = M6; idx = 3;     return true;  // post
             }
-            return true;
-        case CH_AUXIN:  bank = 0; idx = 32 + ch; return true;  // /meters/0
-        case CH_FXRTN:  bank = 0; idx = 40 + ch; return true;
-        case CH_BUS:    bank = 0; idx = 48 + ch; return true;
-        case CH_MATRIX: bank = 0; idx = 64 + ch; return true;
-        case CH_MAIN:   bank = 2; idx = 22;      return true;  // /meters/2 Main L
-        case CH_MONO:   bank = 2; idx = 24;      return true;  // /meters/2 Mono M/C
-        default:        return false;                          // DCA unsupported
+            return false;
+
+        case CH_AUXIN:   // /meters/0 pre level; post -> /m6
+            if (tap == 3) { bank = M6; idx = 3; return true; }
+            bank = 0; idx = 32 + i; return true;
+        case CH_FXRTN:
+            if (tap == 3) { bank = M6; idx = 3; return true; }
+            bank = 0; idx = 40 + i; return true;
+
+        case CH_BUS:     // /meters/2: pre [i], comp-GR [25+i]; post -> /m6
+            if (tap == 2) { bank = 2; idx = 25 + i; return true; }
+            if (tap == 3) { bank = M6; idx = 3;     return true; }
+            bank = 2; idx = i; return true;                   // pre (default)
+        case CH_MATRIX:  // /meters/2: pre [16+i], comp-GR [41+i]; post -> /m6
+            if (tap == 2) { bank = 2; idx = 41 + i; return true; }
+            if (tap == 3) { bank = M6; idx = 3;     return true; }
+            bank = 2; idx = 16 + i; return true;
+        case CH_MONO:    // /meters/2: pre [24], comp-GR [48]; post -> /m6
+            if (tap == 2) { bank = 2; idx = 48; return true; }
+            if (tap == 3) { bank = M6; idx = 3; return true; }
+            bank = 2; idx = 24; return true;
+        case CH_MAIN:    // /meters/2: post L [22] (bulk!), comp-GR [47]; pre -> /m6
+            if (tap == 2) { bank = 2; idx = 47; return true; }
+            if (tap == 0) { bank = M6; idx = 0; return true; }
+            bank = 2; idx = 22; return true;                  // post (default)
+
+        default:        return false;                         // DCA unsupported
     }
 }

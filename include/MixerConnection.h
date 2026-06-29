@@ -33,8 +33,9 @@ public:
 
     bool isConnected() const { return _connected; }
 
-    // True if this meter trigger wanted the postfader /meters/6 source but was
-    // blocked because another trigger already owns the single /meters/6 slot.
+    // True if this meter trigger asked for the post-fader (/meters/6) source but
+    // was blocked because another trigger already holds the single /meters/6
+    // channel selection on a different channel.
     bool isMeterBlocked(uint8_t n) const {
         return (n < MAX_TRIGGERS) ? _meterBlocked[n] : false;
     }
@@ -44,8 +45,7 @@ private:
 
     void sendXRemote();
     void sendFaderMuteQueries();
-    void sendMeterSubscriptions();   // (re)register the full /batchsubscribe set
-    void renewMeterSubscriptions();  // lightweight /renew of all subscriptions
+    void sendMeterSubscriptions();   // (re)register/renew bulk banks + /meters/6 select
     void unsubscribeAllMeters();     // /unsubscribe — stop all subscriptions
     void processIncoming();
 
@@ -62,24 +62,19 @@ private:
 
     // ── Meter-bank routing (SIG_METER triggers) ───────────────────────────────
     // Most meter triggers share up to 3 full-bank subscriptions (/meters/0,1,2).
-    // Postfader triggers instead use the single-channel strip /meters/6 (bank id
-    // METER_BANK_M6). Per trigger we remember which bank + float index it reads.
+    // Post-fader (and Main pre) read from /meters/6 (bank id METER_BANK_M6).
     static const uint8_t METER_BANK_COUNT = 3;   // full banks /meters/0,1,2
     static const uint8_t METER_BANK_M6    = 3;   // _meterBank value for /meters/6
     uint8_t  _meterBank[MAX_TRIGGERS]  = {0xFF, 0xFF, 0xFF, 0xFF}; // 0xFF = none
-    uint32_t _meterIndex[MAX_TRIGGERS] = {};
-    bool     _meterBankUsed[METER_BANK_COUNT] = {};               // full banks to subscribe
+    uint32_t _meterIndex[MAX_TRIGGERS] = {};      // float index in bank, or tap in /m6
+    bool     _meterBankUsed[METER_BANK_COUNT] = {};     // full banks to subscribe
 
-    // /meters/6 holds the 4-float channel strip (pre/gate/dynGR/post) of ONE
-    // channel — the console keeps a single global selection, so only one trigger
-    // can own it. Extra postfader triggers are blocked.
-    uint8_t  _m6Owner     = 0xFF;                 // trigger index owning /meters/6
-    int32_t  _m6ChannelId = -1;                   // its /meters/6 channel_id (0..71)
-    bool     _meterBlocked[MAX_TRIGGERS] = {};    // wanted /meters/6 but blocked
-
-    // ── Subscription lifecycle ────────────────────────────────────────────────
-    bool     _meterRegistered = false;            // batchsubscribes sent to console
-    uint32_t _lastMeterRxMs   = 0;                // last meter blob received (self-heal)
+    // /meters/6 has ONE console-wide channel selection: only one channel can be
+    // metered via the strip at a time. The first /meters/6 trigger claims the
+    // channel; other /meters/6 triggers on a DIFFERENT channel are blocked.
+    // (Several triggers on the SAME channel — e.g. different taps — all work.)
+    int16_t  _m6ChannelId = -1;                   // the one active /meters/6 channel
+    bool     _meterBlocked[MAX_TRIGGERS] = {};    // wanted /meters/6 but channel taken
 
     uint32_t _lastXRemoteMs      = 0;
     uint32_t _lastResponseMs     = 0;

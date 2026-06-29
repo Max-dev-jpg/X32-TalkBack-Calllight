@@ -111,13 +111,22 @@ public:
     // Returns -1 if the channel type does not support meter subscription (e.g. DCA)
     int32_t meterChannelId(const TriggerConfig& t) const;
 
-    // Resolve which /meters bank + float index hold this trigger's meter level.
-    // Uses full-bank subscriptions (no /meters/6 single-channel collision):
-    //   bank 0 (/meters/0): AuxIn/FxRtn/Bus/Matrix levels (and Input level)
-    //   bank 1 (/meters/1): Input level + gate-GR + dynamics-GR (tap-dependent)
-    //   bank 2 (/meters/2): Main L/R and Mono M/C levels
-    // Returns false for unsupported channel types (e.g. DCA).
-    bool meterBankIndex(const TriggerConfig& t, uint8_t& bank, uint32_t& idx) const;
+    // /meters/6 (single-channel strip) bank sentinel returned by meterRoute().
+    static const uint8_t METER_ROUTE_M6 = 6;
+
+    // Resolve which meter bank + float index supply a meter trigger's level,
+    // based on its channel type and tap (meterSignalType: 0=pre,1=gate,2=comp,
+    // 3=post). All full banks stream simultaneously, so multi-channel taps have
+    // no per-channel limit:
+    //   bank 0 (/meters/0): AuxIn / FxRtn level
+    //   bank 1 (/meters/1): Input pre level [idx ch] + gate-GR [32+ch] + comp-GR [64+ch]
+    //   bank 2 (/meters/2): Bus/Matrix/Main/Mono post level + their comp-GR
+    //   bank METER_ROUTE_M6 (/meters/6): single channel, idx = tap (0..3) — used
+    //     for Input post-fader (the only tap not available in a bulk bank). The
+    //     console keeps one global /meters/6 selection, so only ONE such trigger
+    //     can be served; the caller (MixerConnection) arbitrates that.
+    // Returns false if the (channel type, tap) combination has no meter.
+    bool meterRoute(const TriggerConfig& t, uint8_t& bank, uint32_t& idx) const;
 
     // Direct access to the config struct
     DeviceConfig&       cfg()       { return _cfg; }

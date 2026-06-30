@@ -185,7 +185,7 @@ int32_t ConfigManager::meterChannelId(const TriggerConfig& t) const
 //   /meters/0 (70): 32 input | 8 auxin | 8 fxrtn | 16 bus | 6 matrix  — PRE
 //   /meters/1 (96): 32 input PRE [0..31] | 32 gate-GR [32..63] | 32 comp-GR [64..95]
 //   /meters/2 (49): bus PRE [0..15] | mtx PRE [16..21] | main L/R POST [22,23]
-//                   | mono PRE [24] | bus-GR [25..40] | mtx-GR [41..46]
+//                   | mono M/C POST [24] | bus-GR [25..40] | mtx-GR [41..46]
 //                   | main-GR [47] | mono-GR [48]
 //   /meters/6 (4) : ONE channel strip — [0]=pre [1]=gate [2]=comp [3]=post
 //
@@ -228,14 +228,14 @@ bool ConfigManager::meterRoute(const TriggerConfig& t,
             if (tap == 2) { bank = 2; idx = 41 + i; return true; }
             if (tap == 3) { bank = M6; idx = 3;     return true; }
             bank = 2; idx = 16 + i; return true;
-        case CH_MONO:    // /meters/2: pre [24], comp-GR [48]; post -> /m6
-            if (tap == 2) { bank = 2; idx = 48; return true; }
-            if (tap == 3) { bank = M6; idx = 3; return true; }
-            bank = 2; idx = 24; return true;
         case CH_MAIN:    // /meters/2: post L [22] (bulk!), comp-GR [47]; pre -> /m6
             if (tap == 2) { bank = 2; idx = 47; return true; }
             if (tap == 0) { bank = M6; idx = 0; return true; }
             bank = 2; idx = 22; return true;                  // post (default)
+        case CH_MONO:    // /meters/2: post [24] (bulk!), comp-GR [48]; pre -> /m6
+            if (tap == 2) { bank = 2; idx = 48; return true; }
+            if (tap == 0) { bank = M6; idx = 0; return true; }
+            bank = 2; idx = 24; return true;                  // post (default)
 
         default:        return false;                         // DCA unsupported
     }

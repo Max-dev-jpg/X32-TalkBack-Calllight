@@ -59,9 +59,9 @@ const METER_TAPS = {
 
 // Which meter taps actually return data per channel type (X32 metering reality,
 // confirmed live). Pre/Comp/Gate are multi-channel from the full banks. Post (and
-// Main Pre) come from the single-channel /meters/6 strip — only ONE channel can
-// use it at a time (see enforceM6 + METERING.md). Gate-GR exists for inputs only;
-// Main's bulk meter is Post (its Pre uses /meters/6). DCA has no meter.
+// Main/Mono Pre) come from the single-channel /meters/6 strip — only ONE channel
+// can use it at a time (see enforceM6 + METERING.md). Gate-GR exists for inputs
+// only; Main and Mono have a Post bulk meter (their Pre uses /meters/6). DCA: none.
 //   tap values: 0=pre, 1=gate, 2=comp, 3=post
 const METER_TAPS_BY_CHTYPE = {
   0: [0, 3, 2, 1],   // CH_INPUT : pre, post, comp, gate
@@ -71,7 +71,7 @@ const METER_TAPS_BY_CHTYPE = {
   4: [0, 3],         // CH_AUXIN : pre, post
   5: [0, 3],         // CH_FXRTN : pre, post
   6: [3, 0, 2],      // CH_MAIN  : post, pre, comp
-  7: [0, 3, 2],      // CH_MONO  : pre, post, comp
+  7: [3, 0, 2],      // CH_MONO  : post, pre, comp
 };
 
 // Rebuild the meter-tap <select> so it only offers taps that work for the
@@ -102,9 +102,9 @@ const CH_TYPE_NAME = { 0:'Input', 1:'Bus', 2:'Matrix', 3:'DCA',
 
 // Does (channel type, tap) resolve to the /meters/6 strip? Mirrors meterRoute().
 function meterUsesM6(chType, tap) {
-  if (chType === 3) return false;       // DCA: no meter at all
-  if (chType === 6) return tap === 0;   // Main: Pre uses /meters/6 (Post is bulk)
-  return tap === 3;                      // all others: Post uses /meters/6
+  if (chType === 3) return false;                  // DCA: no meter at all
+  if (chType === 6 || chType === 7) return tap === 0;  // Main/Mono: Pre uses /m6 (Post is bulk)
+  return tap === 3;                                 // all others: Post uses /meters/6
 }
 
 // /meters/6 channel_id for a channel type + 1-based number. Mirrors meterChannelId().

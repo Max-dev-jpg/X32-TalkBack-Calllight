@@ -19,7 +19,7 @@ this file is the human-readable reference for it.
 | **Bus** (1-16) | `/meters/2[i]` | — | `/meters/2[25+i]` | **`/meters/6`** ¹ |
 | **Matrix** (1-6) | `/meters/2[16+i]` | — | `/meters/2[41+i]` | **`/meters/6`** ¹ |
 | **Main L/R** | **`/meters/6`** ¹ | — | `/meters/2[47]` | `/meters/2[22]` |
-| **Mono M/C** | `/meters/2[24]` | — | `/meters/2[48]` | **`/meters/6`** ¹ |
+| **Mono M/C** | **`/meters/6`** ¹ | — | `/meters/2[48]` | `/meters/2[24]` |
 | **AuxIn** (1-8) | `/meters/0[32+i]` | — | — | **`/meters/6`** ¹ |
 | **FxRtn** (1-8) | `/meters/0[40+i]` | — | — | **`/meters/6`** ¹ |
 | **DCA** (1-8) | — | — | — | — |
@@ -66,16 +66,16 @@ stream simultaneously at the ~50 ms refresh.
 |------|--------|----------|-----|
 | `/meters/0` | 70 | 32 input, 8 auxin, 8 fxrtn, 16 bus, 6 matrix | **pre** |
 | `/meters/1` | 96 | 32 input level [0-31], 32 gate-GR [32-63], 32 comp-GR [64-95] | **pre** + GR |
-| `/meters/2` | 49 | bus [0-15], mtx [16-21], **main L/R [22,23]**, mono [24], then GRs [25-48] | **pre** (bus/mtx/mono) / **post** (main only) |
+| `/meters/2` | 49 | bus [0-15], mtx [16-21], **main L/R [22,23]**, **mono [24]**, then GRs [25-48] | **pre** (bus/mtx) / **post** (main + mono) |
 | `/meters/5` | 27 | console-surface VU (16 ch + groups + main) | **pre** |
 | `/meters/6` | 4 | one channel: post-gain/trim, gate-GR, comp-GR, post-fade | all 4 (1 ch) |
 
 Notes:
 - For inputs, `/meters/0`, `/meters/1`, `/meters/4`, `/meters/5` are all
   **pre-fader** — none follow the fader.
-- `/meters/2` is **pre-fader** for bus/matrix/mono; **only Main L/R is
-  post-fader** there (hence Main's default tap is post from a bulk bank, while
-  Main's *pre* must come from `/meters/6`).
+- `/meters/2` is **pre-fader** for bus/matrix, but **post-fader for Main L/R and
+  Mono M/C** (so Main and Mono default to post from a bulk bank, while their
+  *pre* must come from `/meters/6`).
 - **DCA** levels are not present in any `/meters/*` bank, so DCA cannot be used
   as a meter source (fader/mute still work).
 

@@ -38,7 +38,11 @@ function updateTrigBodyVisibility(n) {
 }
 for (let n = 0; n < NUM_TRIGGERS; n++) {
   const cb = document.getElementById('t' + n + '-enabled');
-  if (cb) cb.addEventListener('change', () => updateTrigBodyVisibility(n));
+  if (cb) cb.addEventListener('change', () => { updateTrigBodyVisibility(n); enforceM6(n); });
+  const tap = document.getElementById('t' + n + '-metertap');
+  if (tap) tap.addEventListener('change', () => onTrigMeterTapChange(n));
+  const num = document.getElementById('t' + n + '-chnum');
+  if (num) num.addEventListener('change', () => onTrigChNumChange(n));
   updateTrigBodyVisibility(n);
 }
 
@@ -54,10 +58,10 @@ const METER_TAPS = {
 };
 
 // Which meter taps actually return data per channel type (X32 metering reality,
-// confirmed live). Pre/Comp are multi-channel from the full banks; Post comes
-// from the /meters/6 round-robin scanner (works for any number of channels, but
-// several Post channels share update rate). Gate-GR exists for inputs only;
-// Main's natural bulk meter is Post (its Pre uses the scanner). DCA has no meter.
+// confirmed live). Pre/Comp/Gate are multi-channel from the full banks. Post (and
+// Main Pre) come from the single-channel /meters/6 strip — only ONE channel can
+// use it at a time (see enforceM6 + METERING.md). Gate-GR exists for inputs only;
+// Main's bulk meter is Post (its Pre uses /meters/6). DCA has no meter.
 //   tap values: 0=pre, 1=gate, 2=comp, 3=post
 const METER_TAPS_BY_CHTYPE = {
   0: [0, 3, 2, 1],   // CH_INPUT : pre, post, comp, gate
@@ -87,6 +91,147 @@ function rebuildMeterTapOptions(n) {
   }
   if (allowed.includes(prev))      sel.value = prev;
   else if (allowed.length)         sel.value = allowed[0];
+}
+
+// ── /meters/6 single-channel guard ────────────────────────────────────────────
+// Post-fader (and Main pre) read from /meters/6, which has ONE console-wide
+// channel selection. Only one channel can use it; we prevent the user from
+// configuring a second /meters/6 trigger on a different channel.
+const CH_TYPE_NAME = { 0:'Input', 1:'Bus', 2:'Matrix', 3:'DCA',
+                       4:'AuxIn', 5:'FxRtn', 6:'Main', 7:'Mono' };
+
+// Does (channel type, tap) resolve to the /meters/6 strip? Mirrors meterRoute().
+function meterUsesM6(chType, tap) {
+  if (chType === 3) return false;       // DCA: no meter at all
+  if (chType === 6) return tap === 0;   // Main: Pre uses /meters/6 (Post is bulk)
+  return tap === 3;                      // all others: Post uses /meters/6
+}
+
+// /meters/6 channel_id for a channel type + 1-based number. Mirrors meterChannelId().
+function m6ChannelOf(chType, chNum) {
+  const i = (chNum > 0 ? chNum - 1 : 0);
+  switch (chType) {
+    case 0: return i;        // Input  0-31
+    case 4: return 32 + i;   // AuxIn  32-39
+    case 5: return 40 + i;   // FxRtn  40-47
+    case 1: return 48 + i;   // Bus    48-63
+    case 2: return 64 + i;   // Matrix 64-69
+    case 6: return 70;       // Main
+    case 7: return 71;       // Mono
+    default: return -1;
+  }
+}
+
+// /meters/6 channel claimed by trigger n right now, or null if it doesn't use it.
+function triggerM6Channel(n) {
+  const en = document.getElementById('t' + n + '-enabled');
+  if (!en || !en.checked) return null;
+  if ((parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0) !== 1) return null;
+  const ct  = parseInt(document.getElementById('t' + n + '-chtype').value) || 0;
+  const tap = parseInt(document.getElementById('t' + n + '-metertap').value);
+  if (Number.isNaN(tap) || !meterUsesM6(ct, tap)) return null;
+  const cn  = parseInt(document.getElementById('t' + n + '-chnum').value) || 1;
+  return m6ChannelOf(ct, cn);
+}
+
+function triggerChanLabel(n) {
+  const ct = parseInt(document.getElementById('t' + n + '-chtype').value) || 0;
+  const cn = parseInt(document.getElementById('t' + n + '-chnum').value) || 1;
+  return CH_TYPE_NAME[ct] + ((ct === 6 || ct === 7) ? '' : ' ' + cn);
+}
+
+// Returns the index of an enabled meter trigger (other than excludeN) that already
+// holds a /meters/6 channel different from `ch`, or -1 if none.
+function otherM6ChannelHolder(excludeN, ch) {
+  for (let m = 0; m < NUM_TRIGGERS; m++) {
+    if (m === excludeN) continue;
+    const oc = triggerM6Channel(m);
+    if (oc !== null && oc !== ch) return m;
+  }
+  return -1;
+}
+
+let suppressM6Guard = false;   // true while applyConfig() is populating the form
+
+// If trigger n now uses /meters/6 on a channel that clashes with another trigger,
+// switch n's tap to the first non-/meters/6 tap. Returns true if it intervened.
+// `explicit` = the user directly chose the meter tap → show the explaining popup.
+// Otherwise (a channel-type/number change that incidentally lands on /meters/6)
+// the tap is switched silently, with no popup.
+function enforceM6(n, explicit = false) {
+  if (suppressM6Guard) return false;
+  const myCh = triggerM6Channel(n);
+  if (myCh === null) return false;
+  const holder = otherM6ChannelHolder(n, myCh);
+  if (holder < 0) return false;
+
+  const ct  = parseInt(document.getElementById('t' + n + '-chtype').value) || 0;
+  const sel = document.getElementById('t' + n + '-metertap');
+  const wantedTap = parseInt(sel.value);
+  const safe = (METER_TAPS_BY_CHTYPE[ct] || []).find(tap => !meterUsesM6(ct, tap));
+  if (safe !== undefined && sel) sel.value = safe;
+
+  if (explicit) {
+    showInfoModal('Only one Post-Fader channel possible',
+      `This device can meter only <b>one</b> channel's Post-Fader (channel strip) ` +
+      `at a time (due to a limitation) - it is read from <code>/meters/6</code>, which has a single ` +
+      `console-wide selection.<br><br>` +
+      `<b>Trigger ${holder + 1}</b> (${triggerChanLabel(holder)}) already uses it, so ` +
+      `<b>Trigger ${n + 1}</b> (${triggerChanLabel(n)}) cannot use ` +
+      `<b>${METER_TAPS[wantedTap] || 'that tap'}</b> on a different channel.<br><br>` +
+      `Trigger ${n + 1} was set to <b>${safe !== undefined ? METER_TAPS[safe] : '—'}</b>. ` +
+      `To meter this channel post-fader, free up Trigger ${holder + 1} first, or put ` +
+      `both triggers on the <i>same</i> channel. Pre / Comp / Gate work for many ` +
+      `channels at once.`);
+  }
+  return true;
+}
+
+// Validate the whole trigger set before saving. Returns true if OK (no clash).
+function validateM6BeforeSave() {
+  const chans = new Set();
+  let firstN = -1;
+  for (let n = 0; n < NUM_TRIGGERS; n++) {
+    const ch = triggerM6Channel(n);
+    if (ch === null) continue;
+    if (chans.size && !chans.has(ch)) {
+      showInfoModal('Cannot save — two Post-Fader channels',
+        `Only <b>one</b> channel can use Post-Fader / <code>/meters/6</code> at a time. ` +
+        `<b>Trigger ${firstN + 1}</b> and <b>Trigger ${n + 1}</b> are configured for ` +
+        `different channels. Change one to Pre / Comp / Gate, or use the same channel, ` +
+        `then save again.`);
+      return false;
+    }
+    if (!chans.size) firstN = n;
+    chans.add(ch);
+  }
+  return true;
+}
+
+// ── Simple modal popup (themed, self-contained) ───────────────────────────────
+function showInfoModal(title, bodyHtml) {
+  let ov = document.getElementById('info-modal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'info-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);' +
+      'display:none;align-items:center;justify-content:center;z-index:1000;';
+    ov.innerHTML =
+      '<div style="background:var(--bg2);color:var(--text);border:1px solid var(--border);' +
+      'border-radius:var(--radius);max-width:520px;margin:1rem;padding:1.25rem 1.5rem;' +
+      'box-shadow:0 10px 40px rgba(0,0,0,.6);">' +
+      '<h3 id="info-modal-title" style="margin:0 0 .75rem;color:var(--warn);"></h3>' +
+      '<div id="info-modal-body" style="font-size:.92rem;line-height:1.5;"></div>' +
+      '<div style="text-align:right;margin-top:1.25rem;">' +
+      '<button type="button" class="btn-primary" id="info-modal-ok">Got it</button></div></div>';
+    document.body.appendChild(ov);
+    const close = () => { ov.style.display = 'none'; };
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    document.getElementById('info-modal-ok').addEventListener('click', close);
+  }
+  document.getElementById('info-modal-title').textContent = title;
+  document.getElementById('info-modal-body').innerHTML = bodyHtml;
+  ov.style.display = 'flex';
 }
 
 function onTrigChTypeChange(n) {
@@ -299,6 +444,16 @@ function onTrigSigSrcChange(n) {
   triggerSignalSources[n] = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   updateThresholdDisplay(n);
   updateMeterTapVisibility(n);
+  enforceM6(n);   // block a second /meters/6 channel
+}
+
+// Called when the meter tap or channel number changes (wired up below).
+function onTrigMeterTapChange(n) {
+  updateMeterTapVisibility(n);
+  enforceM6(n, true);   // explicit tap choice → explain via popup if it clashes
+}
+function onTrigChNumChange(n) {
+  enforceM6(n);         // incidental clash → switch tap silently
 }
 
 // Show the Pre/Post-Fader/... meter tap selector only for Meter signal source.
@@ -633,6 +788,7 @@ const CHMAX = [32, 16, 6, 8, 8, 8, 0, 0];
 
 function loadTriggerConfig(triggers) {
   if (!Array.isArray(triggers)) return;
+  suppressM6Guard = true;   // don't fire the guard while populating fields
   triggers.forEach((t, n) => {
     if (n >= NUM_TRIGGERS) return;
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
@@ -686,6 +842,7 @@ function loadTriggerConfig(triggers) {
     renderActionList('t' + n + 'On');
     renderActionList('t' + n + 'Off');
   });
+  suppressM6Guard = false;
 }
 
 // ── Save: collect all trigger configs ────────────────────────────────────────
@@ -724,6 +881,7 @@ function collectTriggers() {
 // Trigger form — all 4 triggers + priority settings in one POST
 document.getElementById('form-trigger').addEventListener('submit', async e => {
   e.preventDefault();
+  if (!validateM6BeforeSave()) return;   // refuse impossible /meters/6 combos
   const prioMode = parseInt(document.getElementById('trig-prio-mode').value || '0');
   const data = {
     triggers:           collectTriggers(),

@@ -49,6 +49,12 @@ first such trigger claims the channel (`MixerConnection::_m6ChannelId`); further
 0, shown as `/meters/6 BLOCKED (channel busy)` in the web OSC monitor). Several
 triggers on the **same** channel (e.g. different taps) all work.
 
+The **web UI prevents this proactively**: choosing a Post-Fader tap (or Main
+Pre-Fader) for a second trigger on a different channel is rejected with an
+explaining popup and reverted, and the trigger form refuses to save such a
+combination (`enforceM6` / `validateM6BeforeSave` in `app.js`). The firmware
+block above is the backstop.
+
 ---
 
 ## Confirmed meter-bank layouts

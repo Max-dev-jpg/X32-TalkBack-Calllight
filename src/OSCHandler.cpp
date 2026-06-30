@@ -137,23 +137,6 @@ size_t OSCHandler::buildBatchSubscribe(const String& alias, const String& path,
     return offset;
 }
 
-// Build "/meters ,si <meterPath> <arg>" (direct, no /batchsubscribe).
-size_t OSCHandler::buildMetersSelect(const String& meterPath, int32_t arg,
-                                     uint8_t* buf, size_t bufLen) {
-    memset(buf, 0, bufLen);
-    size_t offset = 0;
-    offset = writeOSCString(buf, offset, bufLen, "/meters");
-    offset = writeOSCString(buf, offset, bufLen, ",si");
-    offset = writeOSCString(buf, offset, bufLen, meterPath);
-    if (offset + 4 <= bufLen) {
-        buf[offset++] = (uint8_t)((arg >> 24) & 0xFF);
-        buf[offset++] = (uint8_t)((arg >> 16) & 0xFF);
-        buf[offset++] = (uint8_t)((arg >>  8) & 0xFF);
-        buf[offset++] = (uint8_t)( arg        & 0xFF);
-    }
-    return offset;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Public decode API
 // ─────────────────────────────────────────────────────────────────────────────

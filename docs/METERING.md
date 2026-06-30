@@ -83,9 +83,17 @@ Notes:
 
 ## Subscription handling
 
-- Full banks `/meters/0,1,2`: `/batchsubscribe <alias> <path> 0 <end> 1`; re-sent
-  every `XREMOTE_INTERVAL_MS` (< 10 s) to renew.
-- `/meters/6`: selected with the direct `/meters ,si /meters/6 <ch>` form, re-sent
-  on the same cadence to keep it alive.
-- `/unsubscribe` (all) is sent before re-registering a changed set and on
+All meter sources are `/batchsubscribe` requests, so one command renews them all:
+
+- **Aliases:** `/m0,/m1,/m2` → `/batchsubscribe <alias> /meters/<0|1|2> 0 <end> 1`
+  (full banks); `/m6` → `/batchsubscribe /m6 /meters/6 <channel_id> 0 1` (single
+  channel strip). The console returns each blob addressed to its alias.
+- **Register once, then renew:** on connect / config change the full set is sent
+  (`sendMeterSubscriptions`); afterwards a single no-arg **`/renew`** extends them
+  all every `METER_RENEW_INTERVAL_MS` (`renewMeterSubscriptions`). Keep that well
+  below the console's 10 s timeout; lower values tolerate more lost renews.
+- **Self-heal:** all subs renew together, so a lost `/renew` lapses them
+  together and meter data stops. If no meter blob arrives for `METER_STALL_MS`
+  while connected, the set is re-registered.
+- **`/unsubscribe` (all)** is sent before re-registering a changed set and on
   reconnect, so a stale `/meters/6` channel stops immediately.

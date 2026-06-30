@@ -45,7 +45,8 @@ private:
 
     void sendXRemote();
     void sendFaderMuteQueries();
-    void sendMeterSubscriptions();   // (re)register/renew bulk banks + /meters/6 select
+    void sendMeterSubscriptions();   // (re)register all meter /batchsubscribe subs
+    void renewMeterSubscriptions();  // /renew (no arg) — extend all active subs
     void unsubscribeAllMeters();     // /unsubscribe — stop all subscriptions
     void processIncoming();
 
@@ -75,6 +76,14 @@ private:
     // (Several triggers on the SAME channel — e.g. different taps — all work.)
     int16_t  _m6ChannelId = -1;                   // the one active /meters/6 channel
     bool     _meterBlocked[MAX_TRIGGERS] = {};    // wanted /meters/6 but channel taken
+
+    // ── Subscription lifecycle (/batchsubscribe once, /renew to extend) ───────
+    // All meter subs are renewed together by one no-arg /renew, so they stay in
+    // sync. If a /renew is lost they all lapse together and meter data stops, so
+    // a single _lastMeterRxMs stall is a reliable signal to re-register.
+    bool     _metersRegistered = false;
+    uint32_t _lastMeterRxMs    = 0;
+    uint32_t _lastMeterRenewMs = 0;   // own cadence: METER_RENEW_INTERVAL_MS
 
     uint32_t _lastXRemoteMs      = 0;
     uint32_t _lastResponseMs     = 0;

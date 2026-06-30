@@ -54,14 +54,6 @@ public:
                                       int32_t iStart, int32_t iEnd, int32_t tf,
                                       uint8_t* buf, size_t bufLen);
 
-    // Build a direct meter request: "/meters ,si <meterPath> <arg>".
-    // For "/meters/6" <arg> selects the channel (0..71); the console then streams
-    // that channel's 4-float strip (~50 ms, ~10 s) addressed to <meterPath>.
-    // Re-sending it (e.g. with a different channel) replaces the selection — this
-    // is what the /meters/6 round-robin scanner uses.
-    static size_t buildMetersSelect(const String& meterPath, int32_t arg,
-                                    uint8_t* buf, size_t bufLen);
-
     // Parse a raw UDP buffer into an OSCMessage struct
     static OSCMessage parse(const uint8_t* buf, size_t len);
 

@@ -138,6 +138,16 @@
 // Talkback / trigger action JSON buffer length (per list)
 #define TB_ACTION_JSON_LEN  1024
 
+// ── Meter subscription handling ──────────────────────────────────────────────
+// Meter subscriptions (/batchsubscribe) last ~10 s on the console and are kept
+// alive with a no-arg /renew sent every METER_RENEW_INTERVAL_MS. Keep this well
+// below 10000; a lower value tolerates more lost /renew packets (a renew that
+// arrives after the 10 s timeout has no effect).
+#define METER_RENEW_INTERVAL_MS  8000
+// If a /renew is lost the subs lapse and meter data stops; a meter-data stall
+// longer than this re-registers them (self-heal).
+#define METER_STALL_MS  3000
+
 // ── Multi-trigger ─────────────────────────────────────────────────────────────
 #define MAX_TRIGGERS  4
 

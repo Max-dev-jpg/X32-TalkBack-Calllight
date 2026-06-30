@@ -13,18 +13,21 @@
 // One full-bank subscription per used bank; the console returns the blob with the
 // alias as its OSC address. iEnd is the INCLUSIVE last float index of the bank.
 namespace {
-    // Full banks are subscribed with /batchsubscribe; the console returns each
-    // bank's blob addressed to our alias. /meters/6 is NOT batch-subscribed — the
-    // scanner selects it with the direct "/meters ,si /meters/6 <ch>" form, whose
-    // reply is addressed to "/meters/6" (handled separately in processIncoming).
+    // Every meter source is a /batchsubscribe; the console returns each blob
+    // addressed to our alias. /m0,/m1,/m2 are the full banks (iEnd = inclusive
+    // last float index); /m6 is the single-channel strip of /meters/6, whose
+    // first int selects the channel. All are renewed together by one /renew.
     const char* const kMeterAlias[3] = { "/m0", "/m1", "/m2" };
     const char* const kMeterPath [3] = { "/meters/0", "/meters/1", "/meters/2" };
     const int32_t     kMeterIEnd [3] = { 69, 95, 48 };  // 70 / 96 / 49 floats
+    const char* const kM6Alias       = "/m6";
 
-    // Map a full-bank alias to its bank index 0..2, or -1 if not one of ours.
+    // Map an alias to its bank id: 0..2 for the full banks, 3 (METER_BANK_M6) for
+    // the /meters/6 strip, or -1 if it is not one of our aliases.
     int meterBankFromAlias(const String& addr) {
         for (int b = 0; b < 3; b++)
             if (addr == kMeterAlias[b]) return b;
+        if (addr == kM6Alias) return 3;
         return -1;
     }
 }
@@ -53,6 +56,9 @@ void MixerConnection::begin() {
         sendMeterSubscriptions();   // register the fresh meter set
         sendFaderMuteQueries();
         uint32_t now = millis();
+        _metersRegistered = true;
+        _lastMeterRxMs    = now;
+        _lastMeterRenewMs = now;
         _lastXRemoteMs    = now;
         _lastKeepaliveMs  = now;
         _lastReconnectMs  = now;
@@ -67,9 +73,10 @@ void MixerConnection::reconnect() {
         _udp.stop();
         _udpOpen = false;
     }
-    _lastXRemoteMs   = 0;   // force immediate xremote + queries on next loop()
-    _lastResponseMs  = 0;
-    _connected       = false;
+    _lastXRemoteMs    = 0;   // force immediate xremote + queries on next loop()
+    _lastResponseMs   = 0;
+    _connected        = false;
+    _metersRegistered = false;
     begin();
 }
 
@@ -199,13 +206,10 @@ void MixerConnection::sendFaderMuteQueries() {
     }
 }
 
-// Register (or re-register) the meter sources needed by the enabled SIG_METER
-// triggers, and renew them (called on the < 10 s /xremote cadence):
-//   • Full banks /meters/0,1,2 via /batchsubscribe — re-sending resets the 10 s
-//     timer, so this both registers and renews them.
-//   • The single /meters/6 channel (post-fader / Main pre) via the direct
-//     "/meters ,si /meters/6 <ch>" form. Only one channel can be selected
-//     console-wide, so exactly one channel is requested here.
+// (Re)register every meter source via /batchsubscribe: the full banks
+// /meters/0,1,2 and, if a post-fader/Main-pre trigger needs it, the single
+// /meters/6 channel (first int = channel_id). Called on connect/config-change
+// and by the self-heal; steady-state extension is done with renewMeterSubscriptions().
 void MixerConnection::sendMeterSubscriptions() {
     if (!_udpOpen) return;
 
@@ -224,13 +228,27 @@ void MixerConnection::sendMeterSubscriptions() {
     }
 
     if (_m6ChannelId >= 0) {
-        size_t len = OSCHandler::buildMetersSelect("/meters/6", _m6ChannelId,
-                                                   _txBuf, sizeof(_txBuf));
+        // /meters/6: first int = channel_id, second unused, then time factor.
+        size_t len = OSCHandler::buildBatchSubscribe(
+            kM6Alias, "/meters/6", _m6ChannelId, 0, 1, _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);
         _udp.endPacket();
-        DBG_PRINTF("[Mixer] /meters ,si /meters/6 %d\n", (int)_m6ChannelId);
+        DBG_PRINTF("[Mixer] /batchsubscribe  %-4s /meters/6 ch=%d\n",
+                   kM6Alias, (int)_m6ChannelId);
     }
+}
+
+// Extend ALL active subscriptions with one no-arg /renew (resets their 10 s timer
+// without re-sending the parameters). They were all registered together, so they
+// renew together. Cheaper than re-subscribing each cycle.
+void MixerConnection::renewMeterSubscriptions() {
+    if (!_udpOpen) return;
+    size_t len = OSCHandler::buildQuery("/renew", _txBuf, sizeof(_txBuf));
+    _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
+    _udp.write(_txBuf, len);
+    _udp.endPacket();
+    DBG_PRINTLN("[Mixer] /renew (all subscriptions)");
 }
 
 // Stop ALL active subscriptions for this client (/unsubscribe with no argument).
@@ -287,33 +305,14 @@ void MixerConnection::processIncoming() {
                           fromIP.toString().c_str(), msg.address.c_str(), msg.typeTag);
         }
 
-        // ── /meters/6 channel strip (direct-form reply, addr "/meters/6") ─────
-        // Holds the single selected channel; distribute to every trigger reading
-        // /meters/6 (all share the one selected channel) at its own tap index.
-        if (msg.typeTag == 'b' && msg.address == "/meters/6") {
-            for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
-                if (_meterBank[n] != METER_BANK_M6) continue;
-                float level = OSCHandler::extractMeterFloat(
-                    _rxBuf, (size_t)read, msg.blobArgOffset, _meterIndex[n]);
-                _triggerLevels[n] = constrain(level, 0.0f, 1.0f);
-
-                uint32_t nowDbg = millis();
-                if (nowDbg - _lastBlobDebugMs[n] >= 1000) {
-                    _lastBlobDebugMs[n] = nowDbg;
-                    DBG_PRINTF("[Mixer] T%u METER  /meters/6 ch=%d tap=%u  level=%.4f\n",
-                               n, (int)_m6ChannelId, (unsigned)_meterIndex[n],
-                               _triggerLevels[n]);
-                }
-            }
-            continue;
-        }
-
-        // ── Full-bank meter blob (/meters/0,1,2) ──────────────────────────────
-        // One blob holds a whole bank; distribute it to every SIG_METER trigger
-        // that reads from this bank, each at its own float index.
+        // ── Meter blob (/m0,/m1,/m2 full bank, or /m6 single-channel strip) ───
+        // Distribute to every SIG_METER trigger reading that bank, each at its own
+        // float index. For /m6 (bank 3) the index is the tap within the 4-float
+        // strip; all /m6 triggers share the one selected channel.
         if (msg.typeTag == 'b') {
             int bank = meterBankFromAlias(msg.address);
             if (bank >= 0) {
+                _lastMeterRxMs = millis();   // subscriptions are alive
                 for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
                     if (_meterBank[n] != (uint8_t)bank) continue;   // 0xFF != bank
                     float level = OSCHandler::extractMeterFloat(
@@ -324,10 +323,9 @@ void MixerConnection::processIncoming() {
                     uint32_t nowDbg = millis();
                     if (nowDbg - _lastBlobDebugMs[n] >= 1000) {
                         _lastBlobDebugMs[n] = nowDbg;
-                        DBG_PRINTF("[Mixer] T%u METER  /meters/%d idx=%-3u  "
-                                   "floats=%d  level=%.4f\n",
-                                   n, bank, (unsigned)_meterIndex[n],
-                                   (int)msg.intVal, _triggerLevels[n]);
+                        DBG_PRINTF("[Mixer] T%u METER  %-3s idx=%-3u  level=%.4f\n",
+                                   n, msg.address.c_str(),
+                                   (unsigned)_meterIndex[n], _triggerLevels[n]);
                     }
                 }
                 continue;   // meter blob handled; skip fader/mute matching
@@ -358,20 +356,40 @@ void MixerConnection::loop() {
 
     if (Config.mixerIP[0] == '\0') return;
 
-    // Every XREMOTE_INTERVAL_MS (< 10 s subscription timeout):
-    //   • Renew /xremote so the X32 keeps pushing parameter changes
-    //   • Re-send the full meter /batchsubscribe set. Re-sending a batchsubscribe
-    //     also resets its 10 s timer, so this both registers and renews — and it
-    //     renews EVERY bank reliably (a no-arg /renew proved fragile: it could let
-    //     one bank, e.g. /meters/6, lapse while others kept the link alive). The
-    //     traffic is a handful of small packets, so cost is negligible.
-    //   • Send one-shot fader/mute queries to refresh current state
-    //     (between renewals the X32 pushes changes via /xremote subscription)
+    // Every XREMOTE_INTERVAL_MS: renew /xremote so the X32 keeps pushing parameter
+    // changes, and send one-shot fader/mute queries to refresh current state
+    // (between renewals the X32 pushes changes via the /xremote subscription).
     if (now - _lastXRemoteMs >= XREMOTE_INTERVAL_MS) {
         sendXRemote();
-        sendMeterSubscriptions();
         sendFaderMuteQueries();
         _lastXRemoteMs = now;
+    }
+
+    // Every METER_RENEW_INTERVAL_MS: extend the meter subscriptions with a
+    // lightweight /renew if registered, else (re)register them in full. All meter
+    // subs renew together, so a lost /renew lapses them all at once — caught by
+    // the self-heal below rather than leaving one bank silently dead.
+    if (now - _lastMeterRenewMs >= METER_RENEW_INTERVAL_MS) {
+        if (_metersRegistered) {
+            renewMeterSubscriptions();
+        } else {
+            sendMeterSubscriptions();
+            _metersRegistered = true;
+            _lastMeterRxMs    = now;
+        }
+        _lastMeterRenewMs = now;
+    }
+
+    // Self-heal: if we expect meter data (any bank or /meters/6 in use) but none
+    // has arrived for METER_STALL_MS while connected, the subs lapsed (e.g. a lost
+    // /renew). Re-register them.
+    const bool anyMeter = _meterBankUsed[0] || _meterBankUsed[1] ||
+                          _meterBankUsed[2] || (_m6ChannelId >= 0);
+    if (_udpOpen && _connected && _metersRegistered && anyMeter &&
+        (now - _lastMeterRxMs > METER_STALL_MS)) {
+        DBG_PRINTLN("[Mixer] meter data stalled — re-registering subscriptions");
+        sendMeterSubscriptions();
+        _lastMeterRxMs = now;   // give the resubscribe time before retrying
     }
 
     // Lightweight keepalive: /info query every MIXER_KEEPALIVE_INTERVAL_MS.

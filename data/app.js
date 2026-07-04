@@ -261,111 +261,47 @@ function onTrigChTypeChange(n) {
   onTrigSigSrcChange(n);
 }
 
-// Matching curve for Meter dB value<>float conversion
-const METER_POINTS = [
-  { db: -60, f: 0.0010 }, { db: -55, f: 0.0018 }, { db: -50, f: 0.0032 },
-  { db: -45, f: 0.0057 }, { db: -40, f: 0.0101 }, { db: -35, f: 0.0180 },
-  { db: -30, f: 0.0320 }, { db: -28, f: 0.0402 }, { db: -26, f: 0.0507 },
-  { db: -24, f: 0.0638 }, { db: -22, f: 0.0803 }, { db: -20, f: 0.1010 },
-  { db: -18, f: 0.1273 }, { db: -16, f: 0.1602 }, { db: -14, f: 0.2016 },
-  { db: -13, f: 0.2263 }, { db: -12, f: 0.2539 }, { db: -11, f: 0.2849 },
-  { db: -10, f: 0.3197 }, { db: -9,  f: 0.3585 }, { db: -8,  f: 0.4022 },
-  { db: -7,  f: 0.4515 }, { db: -6,  f: 0.5066 }, { db: -5,  f: 0.5684 },
-  { db: -4,  f: 0.6378 }, { db: -3,  f: 0.7156 }, { db: -2,  f: 0.8029 },
-  { db: -1,  f: 0.9009 }, { db: 0,   f: 1.0000 }
-];
-
-function normalizedToDb(value, isMeter = false) {
-  const norm = parseFloat(value) || 0;
-  
-  if (isMeter) {
-    if (norm <= 0.0) return -60.0;
-    if (norm >= 1.0) return 0.0;
-  
-    // find correct segment
-    for (let i = 0; i < METER_POINTS.length - 1; i++) {
-      const p1 = METER_POINTS[i];
-      const p2 = METER_POINTS[i+1];
-      
-      if (norm >= p1.f && norm <= p2.f) {
-        // linear interpolation between p1 and p2
-        const ratio = (norm - p1.f) / (p2.f - p1.f);
-        return p1.db + ratio * (p2.db - p1.db);
-      }
-    }
-    return 0;
-  }
-
-  // fader logic
-  if (norm <= 0.0) return -90.0;
-  if (norm >= 1.0) return 10.0;
-
-  let db;
-  if (norm < 0.0625) {
-      db = (norm / 0.0625) * 30 - 90;
-  } else if (norm < 0.25) {
-      db = ((norm - 0.0625) / 0.1875) * 30 - 60;
-  } else if (norm < 0.5) {
-      db = ((norm - 0.25) / 0.25) * 20 - 30;
-  } else {
-      db = ((norm - 0.5) / 0.5) * 20 - 10;
-  }
-  return Math.round(db * 10) / 10;
-}
-
+// Values now arrive from the firmware already in dB (fader + meter); mute is 0/1.
 function formatSignalValue(value, signalSource) {
   const val = parseFloat(value) || 0;
-  if (signalSource === 0) {
-    return normalizedToDb(val, false).toFixed(1) + ' dB';
-  }
-  if (signalSource === 1) {
-    return normalizedToDb(val, true).toFixed(1) + ' dB';
-  }
-  return val.toFixed(0);
+  if (signalSource === 2) return val >= 0.5 ? 'Active' : 'Muted';
+  return val.toFixed(1) + ' dB';
 }
 
-function dbToNormalized(value, isMeter = false) {
-  const db = parseFloat(value);
-  
-  if (isMeter) {
-    if (!Number.isFinite(db) || db <= -60) return 0.0;
-    if (db >= 0) return 1.0;
-    for (let i = 0; i < METER_POINTS.length - 1; i++) {
-      const p1 = METER_POINTS[i];
-      const p2 = METER_POINTS[i+1];
-      
-      if (db >= p1.db && db <= p2.db) {
-        const ratio = (db - p1.db) / (p2.db - p1.db);
-        return p1.f + ratio * (p2.f - p1.f);
-      }
-    }
-    return 1.0;
-  }
-
-  // fader logic
-  if (!Number.isFinite(db) || db <= -90) return 0.0;
-  if (db >= 10) return 1.0;
-
-  let norm;
-  if (db < -60) {
-      norm = ((db + 90) / 30) * 0.0625;
-  } else if (db < -30) {
-      norm = 0.0625 + ((db + 60) / 30) * 0.1875;
-  } else if (db < -10) {
-      norm = 0.25 + ((db + 30) / 20) * 0.25;
-  } else {
-      norm = 0.5 + ((db + 10) / 20) * 0.5;
-  }
-  return Math.max(0, Math.min(1, norm));
+// Map a value (dB, or 0/1 for mute) to a 0..1 bar/graph fraction. GR taps
+// (gate/comp, 0..~40 dB) fill upward; levels use a -60..0 dB window.
+function levelFraction(n, value) {
+  const v = parseFloat(value) || 0;
+  const sig = triggerSignalSources[n] ?? 0;
+  if (sig === 2) return v >= 0.5 ? 1 : 0;                 // mute
+  const tapEl = document.getElementById('t' + n + '-metertap');
+  const tap = tapEl ? parseInt(tapEl.value) : -1;
+  if (sig === 1 && (tap === 1 || tap === 2))              // gate/comp gain reduction
+    return Math.max(0, Math.min(1, v / 40));
+  return Math.max(0, Math.min(1, (v + 60) / 60));         // level / fader: -60..0 dB
 }
 
 
+
+// Threshold is now a plain dB value (slider and number both hold dB).
 function getThresholdValue(n) {
-  const range = document.getElementById('t' + n + '-thresh');
-  if (!range) return 0;
-  const norm = parseFloat(range.dataset.norm);
-  return Number.isFinite(norm) ? norm : 0;
+  const num = document.getElementById('t' + n + '-thresh-n');
+  const v = num ? parseFloat(num.value) : NaN;
+  return Number.isFinite(v) ? v : 0;
 }
+
+// dB range offered for the threshold slider/number, depending on signal + tap.
+function thresholdRange(n) {
+  const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+  if (sigSrc === 1) {   // meter
+    const tap = parseInt(document.getElementById('t' + n + '-metertap').value);
+    if (tap === 1 || tap === 2)
+      return { lo: 0, hi: 40, label: 'Threshold — gain reduction (dB)' };  // GR
+    return { lo: -60, hi: 0, label: 'Threshold (dB)' };                    // level curve
+  }
+  return { lo: -90, hi: 10, label: 'Threshold (dB)' };                     // fader
+}
+
 function updateThresholdDisplay(n) {
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   const range  = document.getElementById('t' + n + '-thresh');
@@ -374,71 +310,31 @@ function updateThresholdDisplay(n) {
 
   const label = range.closest('label');
   const labelText = label ? label.querySelector('.threshold-label-text') : null;
-  const valueNorm = getThresholdValue(n);
 
-  const thresholdLabel = document.getElementById('t' + n + '-thresh')?.closest('label');
+  // Mute has no threshold/hysteresis/smoothing — hide those rows.
+  const thresholdLabel  = label;
   const hysteresisLabel = document.getElementById('t' + n + '-hyst')?.closest('label');
-  const smoothingLabel = document.getElementById('t' + n + '-smooth')?.closest('label');
+  const smoothingLabel  = document.getElementById('t' + n + '-smooth')?.closest('label');
   const showThreshold = sigSrc !== 2;
-
   [thresholdLabel, hysteresisLabel, smoothingLabel].forEach(el => {
     if (el) el.style.display = showThreshold ? '' : 'none';
   });
-
   if (sigSrc === 2) {
     if (labelText) labelText.textContent = 'Threshold (disabled for Mute)';
     return;
   }
 
-  if (label) label.style.display = '';
-  if (sigSrc === 0) {
-    const db = normalizedToDb(valueNorm, false);
-    range.min = 0;
-    range.max = 1;
-    range.step = 0.01;
-    num.min = -90;
-    num.max = 10;
-    num.step = 0.1;
-    range.value = valueNorm.toFixed(2);
-    num.value = db.toFixed(1);
-    if (labelText) labelText.textContent = 'Threshold (-90.0 – +10.0 dB)';
-  }
-  else if (sigSrc === 1) {
-    let db = normalizedToDb(valueNorm, true);
-    range.min = 0;
-    range.max = 1;
-    range.step = 0.01;
-    num.min = -60; // Startet jetzt bei -60
-    num.max = 0;
-    num.step = 0.1;
-    range.value = valueNorm.toFixed(2);
-    num.value = db.toFixed(1);
-    if (labelText) labelText.textContent = 'Threshold (-60.0 – 0.0 dB)';
-  }
-  else {
-    range.min = 0;
-    range.max = 1;
-    range.step = 0.01;
-    num.min = 0;
-    num.max = 1;
-    num.step = 0.01;
-    const formatted = valueNorm.toFixed(2);
-    range.value = formatted;
-    num.value = formatted;
-    if (labelText) labelText.textContent = 'Threshold (0.0 – 1.0)';
-  }
-}
-function updateThresholdNorm(n, rawValue, fromRange = false) {
-  const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
-  const norm = fromRange
-    ? (parseFloat(rawValue) || 0)
-    : ((sigSrc === 0 || sigSrc === 1)
-       ? dbToNormalized(rawValue, sigSrc === 1)
-       : (parseFloat(rawValue) || 0));
-  const range = document.getElementById('t' + n + '-thresh');
-  const num   = document.getElementById('t' + n + '-thresh-n');
-  if (range) range.dataset.norm = norm;
-  if (num)   num.dataset.norm = norm;
+  const r = thresholdRange(n);
+  range.min = r.lo; range.max = r.hi; range.step = 0.5;
+  num.min   = r.lo; num.max   = r.hi; num.step   = 0.1;
+
+  // Keep the current dB value, clamped into the new range.
+  let v = parseFloat(num.value);
+  if (!Number.isFinite(v)) v = r.lo;
+  v = Math.max(r.lo, Math.min(r.hi, v));
+  range.value = v;
+  num.value   = v;
+  if (labelText) labelText.textContent = r.label;
 }
 function onTrigSigSrcChange(n) {
   triggerSignalSources[n] = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
@@ -450,6 +346,7 @@ function onTrigSigSrcChange(n) {
 // Called when the meter tap or channel number changes (wired up below).
 function onTrigMeterTapChange(n) {
   updateMeterTapVisibility(n);
+  updateThresholdDisplay(n);   // level vs gain-reduction → different dB range
   enforceM6(n, true);   // explicit tap choice → explain via popup if it clashes
 }
 function onTrigChNumChange(n) {
@@ -802,15 +699,13 @@ function loadTriggerConfig(triggers) {
     setVal('t' + n + '-sigsrc',  sigSrc);
     setVal('t' + n + '-metertap', t.meterSignalType);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
-    const thresholdNorm = Number.isFinite(t.threshold) ? t.threshold : 0.5;
-    const threshEl = document.getElementById('t' + n + '-thresh');
-    const threshNumEl = document.getElementById('t' + n + '-thresh-n');
-    if (threshEl) threshEl.dataset.norm = thresholdNorm;
-    if (threshNumEl) threshNumEl.dataset.norm = thresholdNorm;
-    setVal('t' + n + '-thresh',  roundInput(thresholdNorm)      ?? 0.5);
-    setVal('t' + n + '-thresh-n',roundInput(thresholdNorm)      ?? 0.5);
-    setVal('t' + n + '-hyst',    roundInput(t.hysteresis)     ?? 0.05);
-    setVal('t' + n + '-hyst-n',  roundInput(t.hysteresis)     ?? 0.05);
+    // Threshold + hysteresis are dB now; slider and number both hold the dB value.
+    // updateThresholdDisplay() (via onTrigSigSrcChange below) then sets the range.
+    const thrDb = Number.isFinite(t.threshold) ? t.threshold : -20;
+    setVal('t' + n + '-thresh',   roundInput(thrDb) ?? -20);
+    setVal('t' + n + '-thresh-n', roundInput(thrDb) ?? -20);
+    setVal('t' + n + '-hyst',    roundInput(t.hysteresis)     ?? 3);
+    setVal('t' + n + '-hyst-n',  roundInput(t.hysteresis)     ?? 3);
     setVal('t' + n + '-smooth',  roundInput(t.smoothing)      ?? 0.15);
     setVal('t' + n + '-smooth-n',roundInput(t.smoothing)      ?? 0.15);
     setVal('t' + n + '-hold',    t.holdTimeMs     ?? 500);
@@ -952,53 +847,17 @@ function syncRange(numEl, rangeName) {
   const r = document.querySelector(`[name="${rangeName}"]`);
   if (r) r.value = numEl.value;
 }
-// Range/number sync by element ID (trigger sliders)
+// Range/number sync by element ID (trigger sliders). All sliders (threshold in
+// dB, hysteresis in dB, smoothing) now hold the same value in both controls, so
+// this is a plain copy in either direction.
 function syncNumById(rangeEl, numId) {
   const numEl = document.getElementById(numId);
-  const triggerId = rangeEl.id.match(/^t(\d+)-thresh$/);
-  if (triggerId) {
-    const n = triggerId[1];
-    const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
-    updateThresholdNorm(n, rangeEl.value, true);
-
-    if (sigSrc === 0) {
-      // Fader: logarithmic
-      const db = normalizedToDb(rangeEl.value, false);
-      if (numEl) numEl.value = db.toFixed(1);
-    } else {
-      // Meter: linear slider
-      const db = (parseFloat(rangeEl.value) * 60) - 60;
-      if (numEl) numEl.value = db.toFixed(1);
-    }
-    return;
-  }
   if (numEl) numEl.value = rangeEl.value;
 }
 
-function syncRangeById(numId, rangeId) { // Hinweis: Habe hier Parameter für bessere Logik getauscht
+function syncRangeById(numEl, rangeId) {
   const r = document.getElementById(rangeId);
-  const numEl = document.getElementById(numId);
-  if (!r || !numEl) return;
-  
-  const triggerId = rangeId.match(/^t(\d+)-thresh$/);
-  if (triggerId) {
-    const n = triggerId[1];
-    const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
-
-    if (sigSrc === 0) {
-      // Fader: logarithmic
-      const norm = dbToNormalized(numEl.value, false);
-      r.value = norm.toFixed(2);
-      updateThresholdNorm(n, numEl.value, false);
-    } else {
-      // Meter: linear slider
-      const norm = (parseFloat(numEl.value) + 60) / 60;
-      r.value = norm.toFixed(2);
-      updateThresholdNorm(n, numEl.value, false);
-    }
-    return;
-  }
-  r.value = numEl.value;
+  if (r) r.value = numEl.value;
 }
 
 // ── Color picker ──────────────────────────────────────────────────────────────
@@ -1145,7 +1004,7 @@ function updateStatus(d) {
       setText('st-trig-' + n + '-level',  lv);
       setText('st-trig-' + n + '-smooth', sv);
       const bar = document.getElementById('st-trig-' + n + '-bar');
-      if (bar) bar.style.width = (Math.max(0, Math.min(1, lvRaw)) * 100) + '%';
+      if (bar) bar.style.width = (levelFraction(n, lvRaw) * 100) + '%';
       const statusEl = document.getElementById('st-trig-' + n + '-status');
       if (statusEl) {
         if (!t.enabled) {
@@ -1318,24 +1177,24 @@ function updateOSCMonitor(d) {
     setText('mon-value-' + n, formatSignalValue(val, src));
     setText('mon-path-'  + n, m.address || '—');
     const bar = document.getElementById('mon-bar-' + n);
-    if (bar) bar.style.width = (Math.max(0, Math.min(1, val)) * 100) + '%';
+    if (bar) bar.style.width = (levelFraction(n, val) * 100) + '%';
 
     if (st.min === null || val < st.min) st.min = val;
     if (st.max === null || val > st.max) st.max = val;
     st.sum += val; st.count++;
-    setText('mon-min-' + n, st.min.toFixed(4));
-    setText('mon-max-' + n, st.max.toFixed(4));
-    setText('mon-avg-' + n, (st.sum / st.count).toFixed(4));
+    setText('mon-min-' + n, formatSignalValue(st.min, src));
+    setText('mon-max-' + n, formatSignalValue(st.max, src));
+    setText('mon-avg-' + n, formatSignalValue(st.sum / st.count, src));
 
-    // History ring-buffer for graph view
-    MON_HIST[n].push(val);
+    // History ring-buffer for graph view (store the 0..1 plot fraction)
+    MON_HIST[n].push(levelFraction(n, val));
     if (MON_HIST[n].length > MON_HIST_SIZE) MON_HIST[n].shift();
     if (monViewMode[n] === 'graph') drawMonitorGraph(n);
 
     const log = document.getElementById('mon-log-' + n);
     if (!log || !log.classList.contains('active')) return;
     const ts  = new Date().toLocaleTimeString('de-DE', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    const pct = Math.round(val * 100);
+    const pct = Math.round(levelFraction(n, val) * 100);
     const displayValue = formatSignalValue(val, src);
     const row = document.createElement('div');
     row.className = 'log-row';

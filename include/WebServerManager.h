@@ -48,6 +48,9 @@ private:
     void handleReconnect     (AsyncWebServerRequest* req);
     void handleMonitorToggle (AsyncWebServerRequest* req);
 
+    // Send a message only to WS clients whose TX queue has room (weak-link safe)
+    void sendToReadyClients(const String& msg);
+
     // ── WebSocket event ───────────────────────────────────────────────────────
     static void onWSEvent(AsyncWebSocket* server,
                           AsyncWebSocketClient* client,

@@ -5,6 +5,7 @@
 #include "MixerConnection.h"
 #include "ConfigManager.h"
 #include "OSCHandler.h"
+#include "MeterScale.h"
 #include "config.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -121,8 +122,10 @@ void MixerConnection::rebuildPaths() {
                 }
             }
 
-            // No live meter source (blocked or unsupported, e.g. DCA): level 0.
-            if (_meterBank[n] == 0xFF) _triggerLevels[n] = 0.0f;
+            // No live meter source (blocked or unsupported, e.g. DCA): hold the
+            // at-rest (silence) level so a stale value can't keep it active.
+            if (_meterBank[n] == 0xFF)
+                _triggerLevels[n] = MeterScale::restLevel(SIG_METER, t.meterSignalType);
         } else {
             _triggerPaths[n] = ConfigManager::instance().buildOSCPathForTrigger(t);
         }
@@ -315,17 +318,19 @@ void MixerConnection::processIncoming() {
                 _lastMeterRxMs = millis();   // subscriptions are alive
                 for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
                     if (_meterBank[n] != (uint8_t)bank) continue;   // 0xFF != bank
-                    float level = OSCHandler::extractMeterFloat(
+                    float raw = OSCHandler::extractMeterFloat(
                         _rxBuf, (size_t)read, msg.blobArgOffset, _meterIndex[n]);
-                    _triggerLevels[n] = constrain(level, 0.0f, 1.0f);
+                    // Convert to dB here so the trigger filters + UI work in dB.
+                    _triggerLevels[n] = MeterScale::toDb(
+                        SIG_METER, Config.triggers[n].meterSignalType, raw);
 
                     // Throttled per-trigger debug: once per second
                     uint32_t nowDbg = millis();
                     if (nowDbg - _lastBlobDebugMs[n] >= 1000) {
                         _lastBlobDebugMs[n] = nowDbg;
-                        DBG_PRINTF("[Mixer] T%u METER  %-3s idx=%-3u  level=%.4f\n",
-                                   n, msg.address.c_str(),
-                                   (unsigned)_meterIndex[n], _triggerLevels[n]);
+                        DBG_PRINTF("[Mixer] T%u METER  %-3s idx=%-3u  raw=%.4f  %.1f dB\n",
+                                   n, msg.address.c_str(), (unsigned)_meterIndex[n],
+                                   raw, _triggerLevels[n]);
                     }
                 }
                 continue;   // meter blob handled; skip fader/mute matching
@@ -337,14 +342,15 @@ void MixerConnection::processIncoming() {
             if (_triggerPaths[n].length() == 0) continue;   // meters use no path
             if (msg.address != _triggerPaths[n])  continue;
 
-            float level = 0.0f;
+            float raw = 0.0f;
             if (msg.typeTag == 'f') {
-                level = msg.floatVal;
+                raw = msg.floatVal;                      // fader position 0..1
             } else if (msg.typeTag == 'i') {
-                // Mute state: /mix/on → 1 = active, 0 = muted
-                level = (float)msg.intVal;
+                raw = (float)msg.intVal;                 // /mix/on: 1=active, 0=muted
             }
-            _triggerLevels[n] = constrain(level, 0.0f, 1.0f);
+            // Fader → dB (X32 taper); mute passes through 0/1.
+            _triggerLevels[n] = MeterScale::toDb(
+                Config.triggers[n].signalSource, 0, constrain(raw, 0.0f, 1.0f));
         }
     }
 }

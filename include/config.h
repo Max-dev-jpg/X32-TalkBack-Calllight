@@ -44,11 +44,13 @@
 #define DEFAULT_LED_BRIGHTNESS 128     // 0-255
 
 // ── Trigger defaults ──────────────────────────────────────────────────────────
-#define DEFAULT_THRESHOLD        0.50f   // 0.0-1.0
+// Threshold + hysteresis are in dB (meter/fader levels are converted to dB in
+// the firmware; mute ignores the threshold). Smoothing is a dimensionless EMA α.
+#define DEFAULT_THRESHOLD        -20.0f  // dB
 #define DEFAULT_HOLD_TIME_MS     500
 #define DEFAULT_RELEASE_DELAY_MS 1000
-#define DEFAULT_HYSTERESIS       0.05f
-#define DEFAULT_SMOOTHING        0.15f   // EMA alpha
+#define DEFAULT_HYSTERESIS       3.0f    // dB
+#define DEFAULT_SMOOTHING        0.15f   // EMA alpha (0.01-1.0)
 #define DEFAULT_DEBOUNCE_MS      50
 
 // ── Flash modes ───────────────────────────────────────────────────────────────

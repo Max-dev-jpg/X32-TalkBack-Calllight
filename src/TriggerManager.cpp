@@ -6,12 +6,23 @@
 #include "ActionEngine.h"
 #include "ConfigManager.h"
 #include "MixerConnection.h"
+#include "MeterScale.h"
 #include "config.h"
 #include <Arduino.h>
+
+// At-rest level (silence / fader-down / no reduction) for trigger n, in the same
+// dB domain the level flows in. Meter/fader levels sit at DB_FLOOR, gate/comp GR
+// at 0, mute at 0 — so a freshly reset trigger reads as inactive, not "loud"
+// (0 dB = full scale).
+static float restLevelFor(uint8_t n) {
+    const TriggerConfig& c = Config.triggers[n];
+    return MeterScale::restLevel(c.signalSource, c.meterSignalType);
+}
 
 void TriggerManager::begin() {
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         _state[n] = TState{};
+        _state[n].smoothed = restLevelFor(n);
         ActionEngine::clearOutput(n); // ACT_SRC_TRIGGER_0..3 = 0..3
     }
     DBG_PRINTF("[Trigger] TriggerManager initialised (%u slots)\n", MAX_TRIGGERS);
@@ -37,9 +48,14 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
     s.smoothed  = alpha * rawLevel + (1.0f - alpha) * s.smoothed;
 
     // ── Effective threshold (with hysteresis) ─────────────────────────────────
-    float effThresh = s.triggered
-                      ? constrain(c.threshold - c.hysteresis, 0.0f, 1.0f)
-                      : c.threshold;
+    // Mute is binary (0/1) and ignores the dB threshold; everything else compares
+    // in dB, so no 0..1 clamp here.
+    float effThresh;
+    if (c.signalSource == SIG_MUTE) {
+        effThresh = 0.5f;
+    } else {
+        effThresh = s.triggered ? (c.threshold - c.hysteresis) : c.threshold;
+    }
 
     // ── Inversion: "above" means signal meets the activation condition ─────────
     bool above = c.invert ? (s.smoothed < effThresh)
@@ -121,7 +137,7 @@ void TriggerManager::loop() {
                 _state[n].triggered = false;
                 ActionEngine::clearOutput(n);
             }
-            _state[n].smoothed = 0.0f;
+            _state[n].smoothed = restLevelFor(n);
             continue;
         }
 
@@ -132,7 +148,7 @@ void TriggerManager::loop() {
                 ActionEngine::execute(Config.triggers[n].offJson, n);
                 ActionEngine::clearOutput(n);
             }
-            _state[n].smoothed      = 0.0f;
+            _state[n].smoothed      = restLevelFor(n);
             _state[n].rawAbove      = false;
             _state[n].debouncing    = false;
             _state[n].inHold        = false;

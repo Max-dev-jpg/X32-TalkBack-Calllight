@@ -30,9 +30,10 @@ void NetworkManager::startAP() {
     DBG_PRINTLN("[Network] Entering AP Fallback mode...");
     
     // Stop active connection attempts to stabilize the radio chip
-    WiFi.disconnect(); 
+    WiFi.disconnect();
     delay(100);
     WiFi.mode(WIFI_AP_STA);
+    WiFi.setSleep(false);   // keep the radio awake for responsive web/UDP in AP too
 
     // Fallback to default password if config is empty
     const char* pw = Config.apPassword[0] != '\0'
@@ -56,6 +57,17 @@ void NetworkManager::startSTA() {
     DBG_PRINTF("[Network] Entering STA mode. Connecting to: %s\n", Config.wifiSSID);
     
     WiFi.mode(WIFI_STA);
+    // Disable modem-sleep: with it on (the ESP32 default) the radio dozes between
+    // beacons, which adds big latency and drops UDP/WebSocket packets — the classic
+    // "sometimes fast, sometimes barely responds" behaviour. Also pin TX power to max.
+    WiFi.setSleep(false);
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+    // Mesh / multi-AP networks (same SSID on several radios): the ESP32 default
+    // (WIFI_FAST_SCAN) grabs the FIRST matching AP by channel order, not the
+    // closest one — so it can latch onto a far, weak node even with a strong AP
+    // right next to it. Scan all channels and pick the strongest BSSID instead.
+    WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+    WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
     WiFi.setAutoReconnect(true); // Let the driver handle minor reconnects
 
     // Configure static IP or dynamic DHCP
@@ -136,8 +148,9 @@ void NetworkManager::loop() {
             if (WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
                 if (!_staConnected) {
                     _staConnected = true;
-                    DBG_PRINTF("[Network] STA connected  IP: %s  RSSI: %d dBm\n",
-                                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
+                    DBG_PRINTF("[Network] STA connected  IP: %s  RSSI: %d dBm  ch=%d  BSSID: %s\n",
+                                  WiFi.localIP().toString().c_str(), WiFi.RSSI(),
+                                  WiFi.channel(), WiFi.BSSIDstr().c_str());
                     MDNS.begin(MDNS_HOSTNAME); 
                 }
 

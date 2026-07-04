@@ -429,9 +429,19 @@ void WebServerManager::begin() {
     DBG_PRINTLN("[Web] HTTP server started on port 80.");
 }
 
+// Send one message only to clients whose TX queue has room. Skipping a backed-up
+// client (common on a weak Wi-Fi link) avoids overflowing AsyncTCP, but — unlike
+// availableForWriteAll() — one slow client no longer blocks updates to the others.
+void WebServerManager::sendToReadyClients(const String& msg) {
+    for (auto& c : _ws.getClients()) {
+        if (c.status() == WS_CONNECTED && !c.queueIsFull())
+            c.text(msg);
+    }
+}
+
 void WebServerManager::broadcastStatus() {
     if (_ws.count() == 0) return;
-    _ws.textAll(buildStatusJSON());
+    sendToReadyClients(buildStatusJSON());
 }
 
 void WebServerManager::broadcastOSCMonitor() {
@@ -464,7 +474,7 @@ void WebServerManager::broadcastOSCMonitor() {
 
     String out;
     serializeJson(doc, out);
-    _ws.textAll(out);
+    sendToReadyClients(out);
 }
 
 void WebServerManager::loop() {

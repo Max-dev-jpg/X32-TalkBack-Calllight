@@ -229,7 +229,7 @@
     <button type="button" class="trig-subtab"        data-trig="3">Trigger 4</button>
   </div>
 
-  <form id="form-trigger">
+  <form id="form-trigger" novalidate>
     <!-- Trigger 0 -->
     <div id="trig-sub-0" class="trig-sub-content active">
       <div class="trig-enable-row">
@@ -280,17 +280,17 @@
           <legend>Threshold &amp; Inversion</legend>
           <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
             <div class="range-row">
-              <input type="range" id="t0-thresh" min="0" max="1" step="0.01" value="0.5"
+              <input type="range" id="t0-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t0-thresh-n')">
-              <input type="number" id="t0-thresh-n" min="0" max="1" step="0.01" value="0.5"
+              <input type="number" id="t0-thresh-n" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncRangeById(this,'t0-thresh')">
             </div>
           </label>
-          <label>Hysteresis (0.0 – 0.5)
+          <label>Hysteresis (dB)
             <div class="range-row">
-              <input type="range" id="t0-hyst" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="range" id="t0-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t0-hyst-n')">
-              <input type="number" id="t0-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="number" id="t0-hyst-n" min="0" max="24" step="0.5" value="3"
                      oninput="syncRangeById(this,'t0-hyst')">
             </div>
           </label>
@@ -395,17 +395,17 @@
           <legend>Threshold &amp; Inversion</legend>
           <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
             <div class="range-row">
-              <input type="range" id="t1-thresh" min="0" max="1" step="0.01" value="0.5"
+              <input type="range" id="t1-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t1-thresh-n')">
-              <input type="number" id="t1-thresh-n" min="0" max="1" step="0.01" value="0.5"
+              <input type="number" id="t1-thresh-n" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncRangeById(this,'t1-thresh')">
             </div>
           </label>
-          <label>Hysteresis (0.0 – 0.5)
+          <label>Hysteresis (dB)
             <div class="range-row">
-              <input type="range" id="t1-hyst" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="range" id="t1-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t1-hyst-n')">
-              <input type="number" id="t1-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="number" id="t1-hyst-n" min="0" max="24" step="0.5" value="3"
                      oninput="syncRangeById(this,'t1-hyst')">
             </div>
           </label>
@@ -493,17 +493,17 @@
           <legend>Threshold &amp; Inversion</legend>
           <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
             <div class="range-row">
-              <input type="range" id="t2-thresh" min="0" max="1" step="0.01" value="0.5"
+              <input type="range" id="t2-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t2-thresh-n')">
-              <input type="number" id="t2-thresh-n" min="0" max="1" step="0.01" value="0.5"
+              <input type="number" id="t2-thresh-n" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncRangeById(this,'t2-thresh')">
             </div>
           </label>
-          <label>Hysteresis (0.0 – 0.5)
+          <label>Hysteresis (dB)
             <div class="range-row">
-              <input type="range" id="t2-hyst" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="range" id="t2-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t2-hyst-n')">
-              <input type="number" id="t2-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="number" id="t2-hyst-n" min="0" max="24" step="0.5" value="3"
                      oninput="syncRangeById(this,'t2-hyst')">
             </div>
           </label>
@@ -591,17 +591,17 @@
           <legend>Threshold &amp; Inversion</legend>
           <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
             <div class="range-row">
-              <input type="range" id="t3-thresh" min="0" max="1" step="0.01" value="0.5"
+              <input type="range" id="t3-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t3-thresh-n')">
-              <input type="number" id="t3-thresh-n" min="0" max="1" step="0.01" value="0.5"
+              <input type="number" id="t3-thresh-n" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncRangeById(this,'t3-thresh')">
             </div>
           </label>
-          <label>Hysteresis (0.0 – 0.5)
+          <label>Hysteresis (dB)
             <div class="range-row">
-              <input type="range" id="t3-hyst" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="range" id="t3-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t3-hyst-n')">
-              <input type="number" id="t3-hyst-n" min="0" max="0.5" step="0.01" value="0.05"
+              <input type="number" id="t3-hyst-n" min="0" max="24" step="0.5" value="3"
                      oninput="syncRangeById(this,'t3-hyst')">
             </div>
           </label>

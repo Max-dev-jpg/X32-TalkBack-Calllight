@@ -81,6 +81,26 @@ Notes:
 
 ---
 
+## dB conversion (done in firmware)
+
+Raw values from the console are converted to **dB in the firmware**
+([`MeterScale.h`](../include/MeterScale.h)), so the trigger filters
+(threshold/hysteresis) and the whole web UI work in dB:
+
+- **Meter level (pre/post):** measured level meter curve (`Level.csv`, 0..1 → dB),
+  floored at `-60 dB`, capped at `0 dB`.
+- **Meter gate/comp:** gain reduction, **inverted** (positive dB = more
+  reduction). `gateToDb()` / `compToDb()` use the **measured** curves
+  (`Gate.csv` / `Comp.csv`); both track `-20·log10(v)` closely but the tables are
+  used verbatim so the extremes match the console.
+- **Fader:** dB along the X32 fader taper.
+- **Mute:** stays 0/1 (ignores the threshold; treated as binary).
+
+Because the trigger domain is now dB, **`threshold` and `hysteresis` are in dB**
+(`config.h` defaults: −20 dB / 3 dB). "At-rest / silence" is `-90 dB` for levels
+and faders, `0` for gain-reduction and mute (`MeterScale::restLevel`). Configs
+saved before this change (0..1 thresholds) should be re-checked.
+
 ## Subscription handling
 
 All meter sources are `/batchsubscribe` requests, so one command renews them all:

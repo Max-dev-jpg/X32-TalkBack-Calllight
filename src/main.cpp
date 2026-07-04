@@ -40,6 +40,12 @@ void setup() {
     // ── 3. Network ────────────────────────────────────────────────────────────
     NetworkManager::instance().begin();
 
+    // Boot indicator: run a 3x chase across the strip while Wi-Fi associates in
+    // the background (association runs in the Wi-Fi task, so this brief blocking
+    // animation doesn't delay it).
+    if (Config.outputType == OUTPUT_WS2812 || Config.outputType == OUTPUT_BOTH)
+        LEDController::instance().bootAnimation(3);
+
     // ── 4. Web server (LittleFS + REST + WebSocket) ───────────────────────────
     WebServerManager::instance().begin();
 

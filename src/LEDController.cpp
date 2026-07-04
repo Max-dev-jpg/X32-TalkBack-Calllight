@@ -60,6 +60,42 @@ void LEDController::testPulse(uint32_t durationMs) {
     _testEndMs = millis() + durationMs;
 }
 
+void LEDController::bootAnimation(uint8_t passes) {
+    if (!_initialised) return;
+    int n = _strip.numPixels();
+    if (n <= 0) return;
+
+    // Use the configured call-light color; fall back to warm orange if it's black
+    // so the boot indicator is always visible.
+    uint8_t r = Config.ledR, g = Config.ledG, b = Config.ledB;
+    if ((r | g | b) == 0) { r = 255; g = 120; b = 0; }
+
+    const int tail = 3;                                   // fading trail length
+    // Keep each pass ~0.7 s regardless of strip length.
+    uint32_t stepMs = constrain((uint32_t)(700 / (n + tail)), (uint32_t)5, (uint32_t)70);
+
+    for (uint8_t p = 0; p < passes; p++) {
+        for (int head = 0; head < n + tail; head++) {
+            _strip.clear();
+            for (int t = 0; t <= tail; t++) {
+                int idx = head - t;
+                if (idx < 0 || idx >= n) continue;
+                float f = 1.0f - (float)t / (float)(tail + 1);   // head bright → tail dim
+                _strip.setPixelColor(idx, _strip.Color((uint8_t)(r * f),
+                                                        (uint8_t)(g * f),
+                                                        (uint8_t)(b * f)));
+            }
+            _strip.show();
+            delay(stepMs);
+        }
+    }
+
+    _strip.clear();
+    _strip.show();
+    _ledState = false;
+    _active   = false;
+}
+
 void LEDController::setForceSolidColor(bool enable, uint8_t r, uint8_t g, uint8_t b) {
     _forceSolid = enable;
     if (enable) {

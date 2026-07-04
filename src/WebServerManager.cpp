@@ -63,18 +63,45 @@ static String buildStatusJSON() {
     return out;
 }
 
-static String buildConfigJSON() {
-    DynamicJsonDocument doc(4096);
+// Emit an action-list field. When `pretty` (export), the stored JSON string is
+// parsed and embedded as readable nested JSON; otherwise it stays a raw string
+// (compact form the UI expects). Falls back to the raw string if it won't parse.
+static void emitActionField(JsonObject obj, const char* key, const char* raw, bool pretty) {
+    if (pretty && raw && raw[0]) {
+        DynamicJsonDocument tmp(3072);
+        if (deserializeJson(tmp, raw) == DeserializationError::Ok) {
+            obj[key] = tmp.as<JsonVariant>();   // deep-copied into obj's document
+            return;
+        }
+    }
+    obj[key] = raw;
+}
+
+// Serialise the full device config. `includeNetwork` controls whether the Wi-Fi /
+// AP credentials + static-IP block is included (excluded for portable export).
+// `pretty` produces human-readable, indented JSON (for the downloadable file) and
+// expands the action lists to readable nested JSON instead of escaped strings.
+static String buildConfigJSON(bool includeNetwork = true, bool pretty = false) {
+    // Readable export embeds the (up to 12) action lists as nested JSON, which
+    // needs far more room than the compact string form used for the live API.
+    DynamicJsonDocument doc(pretty ? 24576 : 4096);
     const DeviceConfig& c = Config;
 
-    // Network
-    doc["apPassword"]    = c.apPassword;
-    doc["wifiSSID"]      = c.wifiSSID;
-    doc["wifiPassword"]  = c.wifiPassword;
-    doc["useDHCP"]       = c.useDHCP;
-    doc["staticIP"]      = c.staticIP;
-    doc["staticGateway"] = c.staticGateway;
-    doc["staticSubnet"]  = c.staticSubnet;
+    // Self-describing header (ignored on import — applyConfigJSON reads only known
+    // keys), so an exported file is recognisable and human-readable.
+    doc["_type"]     = "talkback-calllight-config";
+    doc["_firmware"] = FIRMWARE_VERSION;
+
+    // Network (Wi-Fi/AP credentials + static IP) — omitted from portable export
+    if (includeNetwork) {
+        doc["apPassword"]    = c.apPassword;
+        doc["wifiSSID"]      = c.wifiSSID;
+        doc["wifiPassword"]  = c.wifiPassword;
+        doc["useDHCP"]       = c.useDHCP;
+        doc["staticIP"]      = c.staticIP;
+        doc["staticGateway"] = c.staticGateway;
+        doc["staticSubnet"]  = c.staticSubnet;
+    }
 
     // Mixer connection
     doc["mixerIP"]   = c.mixerIP;
@@ -103,8 +130,8 @@ static String buildConfigJSON() {
         to["trigLedR"]         = t.trigLedR;
         to["trigLedG"]         = t.trigLedG;
         to["trigLedB"]         = t.trigLedB;
-        to["onJson"]           = t.onJson;
-        to["offJson"]          = t.offJson;
+        emitActionField(to, "onJson",  t.onJson,  pretty);
+        emitActionField(to, "offJson", t.offJson, pretty);
         // Resolved OSC path for UI display
         to["resolvedPath"]  = ConfigManager::instance().buildOSCPathForTrigger(t);
     }
@@ -131,10 +158,10 @@ static String buildConfigJSON() {
     doc["tbEnabled"]    = c.tbEnabled;
     doc["tbMonitor"]    = c.tbMonitor;
     doc["tbBFollowsA"]  = c.tbBFollowsA;
-    doc["tbAOnJson"]    = c.tbAOnJson;
-    doc["tbAOffJson"]   = c.tbAOffJson;
-    doc["tbBOnJson"]    = c.tbBOnJson;
-    doc["tbBOffJson"]   = c.tbBOffJson;
+    emitActionField(doc.as<JsonObject>(), "tbAOnJson",  c.tbAOnJson,  pretty);
+    emitActionField(doc.as<JsonObject>(), "tbAOffJson", c.tbAOffJson, pretty);
+    emitActionField(doc.as<JsonObject>(), "tbBOnJson",  c.tbBOnJson,  pretty);
+    emitActionField(doc.as<JsonObject>(), "tbBOffJson", c.tbBOffJson, pretty);
 
     // Multi-trigger priority
     doc["trigPriorityMode"] = c.trigPriorityMode;
@@ -148,15 +175,35 @@ static String buildConfigJSON() {
     doc["extOscPort"]    = c.extOscPort;
 
     String out;
-    serializeJson(doc, out);
+    if (pretty) serializeJsonPretty(doc, out);
+    else        serializeJson(doc, out);
     return out;
+}
+
+// Read an action-list field that may be either the raw JSON string (UI/compact)
+// or a nested array/object (readable export) → always store as a compact string.
+static void readActionField(JsonObject obj, const char* key, char* dst, size_t dstSize) {
+    if (!obj.containsKey(key)) return;
+    JsonVariant v = obj[key];
+    if (v.is<const char*>()) {
+        strlcpy(dst, v.as<const char*>(), dstSize);
+    } else {
+        String s;
+        serializeJson(v, s);                    // nested JSON → compact string
+        strlcpy(dst, s.c_str(), dstSize);
+    }
 }
 
 static bool applyConfigJSON(const String& body) {
     DBG_PRINTF("[Web] applyConfigJSON: body len=%u, heap=%u\n",
                   (unsigned)body.length(), (unsigned)ESP.getFreeHeap());
 
-    DynamicJsonDocument doc(4096);
+    // Size the document to the body: a compact UI save stays small, a readable
+    // export (action lists expanded to nested JSON) gets the extra room it needs.
+    size_t capacity = body.length() + body.length() / 2 + 2048;
+    if (capacity < 4096)  capacity = 4096;
+    if (capacity > 32768) capacity = 32768;
+    DynamicJsonDocument doc(capacity);
     // Use c_str() for zero-copy: ArduinoJson stores pointers into body's buffer
     // instead of duplicating strings into the pool (saves several KB for action JSON)
     DeserializationError err = deserializeJson(doc, body.c_str());
@@ -206,8 +253,8 @@ static bool applyConfigJSON(const String& body) {
             if (to.containsKey("trigLedR"))        t.trigLedR        = to["trigLedR"];
             if (to.containsKey("trigLedG"))        t.trigLedG        = to["trigLedG"];
             if (to.containsKey("trigLedB"))        t.trigLedB        = to["trigLedB"];
-            if (to.containsKey("onJson"))          strlcpy(t.onJson,  to["onJson"],  sizeof(t.onJson));
-            if (to.containsKey("offJson"))         strlcpy(t.offJson, to["offJson"], sizeof(t.offJson));
+            readActionField(to, "onJson",  t.onJson,  sizeof(t.onJson));
+            readActionField(to, "offJson", t.offJson, sizeof(t.offJson));
 
             DBG_PRINTF("[Web] T%u applied: en=%d chType=%u chNum=%u sig=%u "
                           "thr=%.3f hyst=%.3f smth=%.3f inv=%d\n",
@@ -237,10 +284,10 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("tbEnabled"))   c.tbEnabled   = doc["tbEnabled"];
     if (doc.containsKey("tbMonitor"))   c.tbMonitor   = doc["tbMonitor"];
     if (doc.containsKey("tbBFollowsA")) c.tbBFollowsA = doc["tbBFollowsA"];
-    if (doc.containsKey("tbAOnJson"))   strlcpy(c.tbAOnJson,  doc["tbAOnJson"],  sizeof(c.tbAOnJson));
-    if (doc.containsKey("tbAOffJson"))  strlcpy(c.tbAOffJson, doc["tbAOffJson"], sizeof(c.tbAOffJson));
-    if (doc.containsKey("tbBOnJson"))   strlcpy(c.tbBOnJson,  doc["tbBOnJson"],  sizeof(c.tbBOnJson));
-    if (doc.containsKey("tbBOffJson"))  strlcpy(c.tbBOffJson, doc["tbBOffJson"], sizeof(c.tbBOffJson));
+    readActionField(doc.as<JsonObject>(), "tbAOnJson",  c.tbAOnJson,  sizeof(c.tbAOnJson));
+    readActionField(doc.as<JsonObject>(), "tbAOffJson", c.tbAOffJson, sizeof(c.tbAOffJson));
+    readActionField(doc.as<JsonObject>(), "tbBOnJson",  c.tbBOnJson,  sizeof(c.tbBOnJson));
+    readActionField(doc.as<JsonObject>(), "tbBOffJson", c.tbBOffJson, sizeof(c.tbBOffJson));
 
     // Multi-trigger priority
     if (doc.containsKey("trigPriorityMode"))
@@ -298,6 +345,12 @@ void WebServerManager::setupAPI() {
     _server.on("/api/status", HTTP_GET,
         [this](AsyncWebServerRequest* req) { handleGetStatus(req); });
 
+    // NOTE: on() matches by prefix ("/api/config" also matches "/api/config/…"),
+    // and the first registered handler wins — so the more specific /export route
+    // MUST be registered before the generic /api/config handler.
+    _server.on("/api/config/export", HTTP_GET,
+        [this](AsyncWebServerRequest* req) { handleExportConfig(req); });
+
     _server.on("/api/config", HTTP_GET,
         [this](AsyncWebServerRequest* req) { handleGetConfig(req); });
 
@@ -347,6 +400,15 @@ void WebServerManager::handleGetStatus(AsyncWebServerRequest* req) {
 
 void WebServerManager::handleGetConfig(AsyncWebServerRequest* req) {
     req->send(200, "application/json", buildConfigJSON());
+}
+
+void WebServerManager::handleExportConfig(AsyncWebServerRequest* req) {
+    // Pretty-printed, network block omitted → portable between devices/sites.
+    AsyncWebServerResponse* res = req->beginResponse(
+        200, "application/json", buildConfigJSON(/*includeNetwork=*/false, /*pretty=*/true));
+    res->addHeader("Content-Disposition",
+                   "attachment; filename=\"talkback-config.json\"");
+    req->send(res);
 }
 
 void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,

@@ -906,6 +906,32 @@ function confirmAction(url, question) {
   if (confirm(question)) apiPost(url);
 }
 
+// ── Config import / export ────────────────────────────────────────────────────
+function exportConfig() {
+  // Content-Disposition on the endpoint makes the browser download the file.
+  window.location.href = '/api/config/export';
+}
+
+async function importConfig(input) {
+  const file = input.files && input.files[0];
+  input.value = '';                       // reset so the same file can be re-picked
+  if (!file) return;
+
+  let cfg;
+  try {
+    cfg = JSON.parse(await file.text());
+  } catch (e) {
+    showToast('Not a valid JSON file', 'error');
+    return;
+  }
+  if (cfg._type !== 'talkback-calllight-config' &&
+      !confirm('This file is not a recognised TalkBack config. Import anyway?')) return;
+  if (!confirm('Import this configuration? All settings except Wi-Fi will be overwritten.')) return;
+
+  await apiPost('/api/config', cfg);      // WiFi keys are absent → left untouched
+  setTimeout(loadConfig, 800);            // repopulate the form from the applied config
+}
+
 // ── Collect named form fields → object ────────────────────────────────────────
 function collectForm(formId) {
   const form = document.getElementById(formId);

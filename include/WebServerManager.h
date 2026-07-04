@@ -39,6 +39,7 @@ private:
     // ── REST handlers ────────────────────────────────────────────────────────
     void handleGetStatus (AsyncWebServerRequest* req);
     void handleGetConfig (AsyncWebServerRequest* req);
+    void handleExportConfig(AsyncWebServerRequest* req);
     void handlePostConfig(AsyncWebServerRequest* req,
                           uint8_t* data, size_t len,
                           size_t index, size_t total);

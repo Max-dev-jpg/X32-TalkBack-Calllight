@@ -996,6 +996,18 @@
       <button class="btn-secondary" onclick="apiPost('/api/reconnect')">Reconnect</button>
     </div>
     <div class="tool-card">
+      <div class="tool-title">Export Configuration</div>
+      <p>Downloads the full configuration as a readable JSON file. Wi-Fi credentials are excluded.</p>
+      <button class="btn-secondary" onclick="exportConfig()">Export JSON</button>
+    </div>
+    <div class="tool-card">
+      <div class="tool-title">Import Configuration</div>
+      <p>Loads a previously exported JSON file and applies it. Wi-Fi settings stay unchanged.</p>
+      <input type="file" id="import-file" accept=".json,application/json" style="display:none"
+             onchange="importConfig(this)">
+      <button class="btn-secondary" onclick="document.getElementById('import-file').click()">Import JSON…</button>
+    </div>
+    <div class="tool-card">
       <div class="tool-title">Reboot Device</div>
       <p>Performs a clean ESP32 software reboot.</p>
       <button class="btn-warning" onclick="confirmAction('/api/reboot','Reboot the device?')">Reboot</button>

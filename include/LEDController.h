@@ -25,6 +25,10 @@ public:
     void setForceSolidColor(bool enable, uint8_t r = 0, uint8_t g = 0, uint8_t b = 0);
     void testPulse(uint32_t durationMs = 2000);
 
+    // Boot indicator: a comet/chase running `passes` times across the strip in
+    // the configured call-light color. Blocking (~0.7 s per pass) — boot only.
+    void bootAnimation(uint8_t passes = 3);
+
     bool isActive() const { return _active; }
 
 private:

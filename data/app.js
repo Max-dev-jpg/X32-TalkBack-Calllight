@@ -291,15 +291,18 @@ function getThresholdValue(n) {
 }
 
 // dB range offered for the threshold slider/number, depending on signal + tap.
+// Ranges match each source's real signal domain (measured meter/GR curves).
 function thresholdRange(n) {
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   if (sigSrc === 1) {   // meter
     const tap = parseInt(document.getElementById('t' + n + '-metertap').value);
-    if (tap === 1 || tap === 2)
-      return { lo: 0, hi: 40, label: 'Threshold — gain reduction (dB)' };  // GR
-    return { lo: -60, hi: 0, label: 'Threshold (dB)' };                    // level curve
+    if (tap === 1)   // gate gain-reduction — measured curve reaches ~60 dB
+      return { lo: 0, hi: 60, label: 'Threshold — gate gain-reduction (dB)' };
+    if (tap === 2)   // comp gain-reduction — measured curve reaches ~30 dB
+      return { lo: 0, hi: 30, label: 'Threshold — comp gain-reduction (dB)' };
+    return { lo: -60, hi: 0, label: 'Threshold — meter level (dB)' };     // level curve
   }
-  return { lo: -90, hi: 10, label: 'Threshold (dB)' };                     // fader
+  return { lo: -90, hi: 10, label: 'Threshold — fader (dB)' };            // fader
 }
 
 function updateThresholdDisplay(n) {
@@ -334,7 +337,8 @@ function updateThresholdDisplay(n) {
   v = Math.max(r.lo, Math.min(r.hi, v));
   range.value = v;
   num.value   = v;
-  if (labelText) labelText.textContent = r.label;
+  // Show the valid range inline so the user sees the domain of the current source.
+  if (labelText) labelText.textContent = r.label + '  ·  range ' + r.lo + '…' + r.hi;
 }
 function onTrigSigSrcChange(n) {
   triggerSignalSources[n] = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
@@ -1022,21 +1026,29 @@ function updateStatus(d) {
   // Per-trigger status cards (Trigger 1–4)
   if (Array.isArray(d.triggers)) {
     d.triggers.forEach((t, n) => {
+      const bar      = document.getElementById('st-trig-' + n + '-bar');
+      const statusEl = document.getElementById('st-trig-' + n + '-status');
+
+      // Disabled trigger: don't show live levels — just an empty grey bar.
+      if (!t.enabled) {
+        setText('st-trig-' + n + '-level',  '—');
+        setText('st-trig-' + n + '-smooth', '—');
+        if (bar) { bar.style.width = '0%'; bar.classList.add('disabled'); }
+        if (statusEl) {
+          statusEl.textContent = 'Disabled';
+          statusEl.className   = 'card-value trig-status disabled';
+        }
+        return;
+      }
+
       const lvRaw = parseFloat(t.level    ?? 0);
       const svRaw = parseFloat(t.smoothed ?? 0);
       const src = triggerSignalSources[n] ?? 0;
-      const lv = formatSignalValue(lvRaw, src);
-      const sv = formatSignalValue(svRaw, src);
-      setText('st-trig-' + n + '-level',  lv);
-      setText('st-trig-' + n + '-smooth', sv);
-      const bar = document.getElementById('st-trig-' + n + '-bar');
-      if (bar) bar.style.width = (levelFraction(n, lvRaw) * 100) + '%';
-      const statusEl = document.getElementById('st-trig-' + n + '-status');
+      setText('st-trig-' + n + '-level',  formatSignalValue(lvRaw, src));
+      setText('st-trig-' + n + '-smooth', formatSignalValue(svRaw, src));
+      if (bar) { bar.classList.remove('disabled'); bar.style.width = (levelFraction(n, lvRaw) * 100) + '%'; }
       if (statusEl) {
-        if (!t.enabled) {
-          statusEl.textContent = 'Disabled';
-          statusEl.className   = 'card-value trig-status disabled';
-        } else if (t.triggered) {
+        if (t.triggered) {
           statusEl.textContent = 'ACTIVE';
           statusEl.className   = 'card-value trig-status active';
         } else {

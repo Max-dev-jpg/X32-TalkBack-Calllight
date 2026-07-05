@@ -222,6 +222,37 @@
   </p>
 
   <!-- Sub-tab bar -->
+  <details class="trig-help">
+    <summary>How the trigger filters work</summary>
+    <div class="trig-help-body">
+      <p>Each trigger continuously compares the <strong>smoothed</strong> value of its
+         source against the <strong>Threshold</strong>. When it crosses, the On / Off
+         actions fire.</p>
+      <ul>
+        <li><strong>Threshold</strong> — the switching point. Its unit follows the source:
+          <ul>
+            <li><em>Fader / Meter Level</em> → level in <strong>dB</strong>
+                (fader −90…+10, meter −60…0). Fires when the level rises to or above it.</li>
+            <li><em>Gate / Comp</em> → <strong>gain reduction</strong> in dB
+                (gate 0…60, comp 0…30). Fires when the reduction reaches it — i.e. the
+                gate closing or the compressor working.</li>
+            <li><em>Mute</em> → no threshold, it's simply on/off.</li>
+          </ul>
+        </li>
+        <li><strong>Invert</strong> — fire when the value is <em>below</em> the threshold
+            instead (e.g. channel muted, gate open, signal gone quiet).</li>
+        <li><strong>Hysteresis</strong> — once fired, the value must fall this many dB
+            back below the threshold before releasing. Stops rapid on/off chatter right
+            at the threshold. Typical <strong>2–6 dB</strong>.</li>
+        <li><strong>Smoothing</strong> — how strongly the fast (~20×/s) readings are
+            averaged. Higher = reacts faster but twitchier; lower = steadier but slower.
+            Typical <strong>0.1–0.3</strong>.</li>
+      </ul>
+      <p class="trig-help-note">The <em>Timing</em> section shapes the output <em>after</em>
+         the decision (minimum on-time, release delay, debounce).</p>
+    </div>
+  </details>
+
   <div class="trig-subtabs" id="trig-subtabs">
     <button type="button" class="trig-subtab active" data-trig="0">Trigger 1</button>
     <button type="button" class="trig-subtab"        data-trig="1">Trigger 2</button>
@@ -278,7 +309,7 @@
 
         <fieldset>
           <legend>Threshold &amp; Inversion</legend>
-          <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
+          <label><span class="threshold-label-text">Threshold (dB)</span>
             <div class="range-row">
               <input type="range" id="t0-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t0-thresh-n')">
@@ -286,7 +317,7 @@
                      oninput="syncRangeById(this,'t0-thresh')">
             </div>
           </label>
-          <label>Hysteresis (dB)
+          <label>Hysteresis (dB) — release margin below threshold
             <div class="range-row">
               <input type="range" id="t0-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t0-hyst-n')">
@@ -294,20 +325,20 @@
                      oninput="syncRangeById(this,'t0-hyst')">
             </div>
           </label>
-          <label>Smoothing / EMA alpha (0.01 – 1.0)
+          <label>Smoothing — response speed (0.01 – 1.0)
             <div class="range-row">
               <input type="range" id="t0-smooth" min="0.01" max="1" step="0.01" value="0.15"
                      oninput="syncNumById(this,'t0-smooth-n')">
               <input type="number" id="t0-smooth-n" min="0.01" max="1" step="0.01" value="0.15"
                      oninput="syncRangeById(this,'t0-smooth')">
             </div>
-            <small>Lower = more smoothing. Higher = faster response.</small>
+            <small>Averages the fast meter readings. Lower = steadier but slower to react; higher = faster but twitchier. Typical 0.1–0.3.</small>
           </label>
           <label class="toggle-row">
             <span>Invert — fire when signal is BELOW threshold</span>
             <input type="checkbox" id="t0-invert">
           </label>
-          <p class="invert-hint">Useful for Mute State: triggers when channel is muted.</p>
+          <p class="invert-hint">Fires when the value is <em>below</em> the threshold — e.g. Mute active, gate open, or the signal has dropped out.</p>
         </fieldset>
 
         <fieldset>
@@ -393,7 +424,7 @@
         </fieldset>
         <fieldset>
           <legend>Threshold &amp; Inversion</legend>
-          <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
+          <label><span class="threshold-label-text">Threshold (dB)</span>
             <div class="range-row">
               <input type="range" id="t1-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t1-thresh-n')">
@@ -401,7 +432,7 @@
                      oninput="syncRangeById(this,'t1-thresh')">
             </div>
           </label>
-          <label>Hysteresis (dB)
+          <label>Hysteresis (dB) — release margin below threshold
             <div class="range-row">
               <input type="range" id="t1-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t1-hyst-n')">
@@ -409,7 +440,7 @@
                      oninput="syncRangeById(this,'t1-hyst')">
             </div>
           </label>
-          <label>Smoothing / EMA alpha (0.01 – 1.0)
+          <label>Smoothing — response speed (0.01 – 1.0)
             <div class="range-row">
               <input type="range" id="t1-smooth" min="0.01" max="1" step="0.01" value="0.15"
                      oninput="syncNumById(this,'t1-smooth-n')">
@@ -491,7 +522,7 @@
         </fieldset>
         <fieldset>
           <legend>Threshold &amp; Inversion</legend>
-          <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
+          <label><span class="threshold-label-text">Threshold (dB)</span>
             <div class="range-row">
               <input type="range" id="t2-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t2-thresh-n')">
@@ -499,7 +530,7 @@
                      oninput="syncRangeById(this,'t2-thresh')">
             </div>
           </label>
-          <label>Hysteresis (dB)
+          <label>Hysteresis (dB) — release margin below threshold
             <div class="range-row">
               <input type="range" id="t2-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t2-hyst-n')">
@@ -507,7 +538,7 @@
                      oninput="syncRangeById(this,'t2-hyst')">
             </div>
           </label>
-          <label>Smoothing / EMA alpha (0.01 – 1.0)
+          <label>Smoothing — response speed (0.01 – 1.0)
             <div class="range-row">
               <input type="range" id="t2-smooth" min="0.01" max="1" step="0.01" value="0.15"
                      oninput="syncNumById(this,'t2-smooth-n')">
@@ -589,7 +620,7 @@
         </fieldset>
         <fieldset>
           <legend>Threshold &amp; Inversion</legend>
-          <label><span class="threshold-label-text">Threshold (0.0 – 1.0)</span>
+          <label><span class="threshold-label-text">Threshold (dB)</span>
             <div class="range-row">
               <input type="range" id="t3-thresh" min="-90" max="10" step="0.5" value="-20"
                      oninput="syncNumById(this,'t3-thresh-n')">
@@ -597,7 +628,7 @@
                      oninput="syncRangeById(this,'t3-thresh')">
             </div>
           </label>
-          <label>Hysteresis (dB)
+          <label>Hysteresis (dB) — release margin below threshold
             <div class="range-row">
               <input type="range" id="t3-hyst" min="0" max="24" step="0.5" value="3"
                      oninput="syncNumById(this,'t3-hyst-n')">
@@ -605,7 +636,7 @@
                      oninput="syncRangeById(this,'t3-hyst')">
             </div>
           </label>
-          <label>Smoothing / EMA alpha (0.01 – 1.0)
+          <label>Smoothing — response speed (0.01 – 1.0)
             <div class="range-row">
               <input type="range" id="t3-smooth" min="0.01" max="1" step="0.01" value="0.15"
                      oninput="syncNumById(this,'t3-smooth-n')">

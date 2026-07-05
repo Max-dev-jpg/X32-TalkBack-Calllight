@@ -272,6 +272,32 @@ small {
   margin-top: -0.2rem;
 }
 
+/* Subtle collapsible "how the filters work" hint above the trigger sub-tabs */
+.trig-help {
+  margin-bottom: 0.6rem;
+}
+.trig-help > summary {
+  cursor: pointer;
+  padding: 0.15rem 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  list-style-position: inside;
+}
+.trig-help > summary:hover { color: var(--text); }
+.trig-help-body {
+  padding: 0.35rem 0.1rem 0.2rem;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.trig-help-body ul { margin: 0.3rem 0 0.3rem 1.1rem; padding: 0; }
+.trig-help-body ul ul { margin-top: 0.2rem; }
+.trig-help-body li { margin: 0.2rem 0; }
+.trig-help-body strong { color: var(--text); font-weight: 600; }
+.trig-help-body em { color: var(--text-dim); font-style: normal; }
+.trig-help-note { margin-top: 0.45rem; }
+
 /* ── Color picker row ────────────────────────────────────────────────────── */
 .color-row {
   display: flex;

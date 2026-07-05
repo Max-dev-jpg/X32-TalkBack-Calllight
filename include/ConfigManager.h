@@ -70,6 +70,7 @@ struct DeviceConfig {
     uint8_t  ledR;
     uint8_t  ledG;
     uint8_t  ledB;
+    bool     disconnectIndicator; // show the red LED indicator while mixer is offline
 
     // ── Talkback Engine ───────────────────────────────────────────────────────
     // Action types: clearSolo | solo | unsolo | mute | unmute | osc | out | forceout

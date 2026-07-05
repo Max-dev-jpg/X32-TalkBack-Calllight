@@ -71,6 +71,7 @@ bool StorageManager::save(const DeviceConfig& c) {
     _prefs.putUChar ("led_r",    c.ledR);
     _prefs.putUChar ("led_g",    c.ledG);
     _prefs.putUChar ("led_b",    c.ledB);
+    _prefs.putBool  ("disc_ind", c.disconnectIndicator);
 
     // Talkback Engine
     _prefs.putBool  ("tb_en",    c.tbEnabled);
@@ -153,6 +154,7 @@ bool StorageManager::load(DeviceConfig& c) {
     c.ledR          = _prefs.getUChar ("led_r",    c.ledR);
     c.ledG          = _prefs.getUChar ("led_g",    c.ledG);
     c.ledB          = _prefs.getUChar ("led_b",    c.ledB);
+    c.disconnectIndicator = _prefs.getBool("disc_ind", c.disconnectIndicator);
 
     // Talkback Engine
     c.tbEnabled = _prefs.getBool ("tb_en",  c.tbEnabled);

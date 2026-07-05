@@ -85,6 +85,7 @@ void ConfigManager::applyDefaults()
     _cfg.ledR          = DEFAULT_LED_R;
     _cfg.ledG          = DEFAULT_LED_G;
     _cfg.ledB          = DEFAULT_LED_B;
+    _cfg.disconnectIndicator = true;    // show the red offline indicator by default
 
     // Talkback Engine
     _cfg.tbEnabled    = false;

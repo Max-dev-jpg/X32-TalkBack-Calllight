@@ -46,6 +46,7 @@ void OSCReceiver::handleTriggerN(uint8_t n, bool on) {
     _extTrigger[n] = on;
 
     if (on) {
+        _startMs[n] = millis();   // for PRIO_NEWEST LED color selection
         DBG_PRINTF("[XOSC] Trigger %u ON\n", n + 1);
         ActionEngine::execute(Config.triggers[n].onJson, ACT_SRC_OSC);
     } else {
@@ -64,6 +65,7 @@ void OSCReceiver::pulseTriggerN(uint8_t n, uint32_t ms) {
     if (!_extTrigger[n]) {
         // Fire on — loop() will fire off when the timer expires
         _extTrigger[n] = true;
+        _startMs[n]    = millis();   // for PRIO_NEWEST LED color selection
         DBG_PRINTF("[XOSC] Trigger %u PULSE %u ms\n", n + 1, ms);
         ActionEngine::execute(Config.triggers[n].onJson, ACT_SRC_OSC);
     } else {

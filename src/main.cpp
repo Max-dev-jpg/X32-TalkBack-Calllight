@@ -91,10 +91,13 @@ void loop() {
     // talkback can silence the call light even while triggers are active.
     bool suppressed = ActionEngine::isForcedOff();
     bool mixerConnected = MixerConnection::instance().isConnected();
+    // External OSC triggers (and 'out' actions) work independently of the mixer
+    // link; only mixer-meter triggers require an active connection.
+    bool extTriggered = OSCReceiver::instance().isExtTriggerActive();
     bool triggered  = !suppressed && (
         (mixerConnected && TriggerManager::instance().isAnyTriggered())
         || ActionEngine::isOutputActive()
-        || (mixerConnected && OSCReceiver::instance().isExtTriggerActive())
+        || extTriggered
     );
 
     if (Config.outputType == OUTPUT_GPIO || Config.outputType == OUTPUT_BOTH) {
@@ -104,23 +107,42 @@ void loop() {
 
     if (Config.outputType == OUTPUT_WS2812 || Config.outputType == OUTPUT_BOTH) {
 
-        if (!mixerConnected) {
-            // Show a continuously lit dark red status indicator while the mixer is disconnected.
+        if (!mixerConnected && !triggered && Config.disconnectIndicator) {
+            // Dark red "mixer disconnected" indicator (can be disabled in the UI) —
+            // an active external OSC trigger (or 'out' action) always takes over the
+            // strip even while offline.
             LEDController::instance().setForceSolidColor(true, 60, 0, 0);
         } else {
             LEDController::instance().setForceSolidColor(false);
             LEDController::instance().setTrigger(triggered);
 
-            // Per-trigger color override with configurable priority
+            // Per-trigger color override with configurable priority. A trigger's
+            // color counts when it is active via the mixer state machine (enabled)
+            // OR via an external OSC command (which drives triggers regardless of
+            // the 'enabled' flag), as long as it opted into a custom color.
+            auto colorActive = [](uint8_t n) -> bool {
+                const TriggerConfig& tc = Config.triggers[n];
+                if (!tc.useTriggerColor) return false;
+                bool mixerOn = tc.enabled && TriggerManager::instance().isTriggered(n);
+                bool oscOn   = OSCReceiver::instance().isExtTriggerActive(n);
+                return mixerOn || oscOn;
+            };
+            // Most recent ON edge across both sources (for PRIO_NEWEST).
+            auto colorStartMs = [](uint8_t n) -> uint32_t {
+                uint32_t a = TriggerManager::instance().isTriggered(n)
+                             ? TriggerManager::instance().getTriggerStartMs(n) : 0;
+                uint32_t b = OSCReceiver::instance().isExtTriggerActive(n)
+                             ? OSCReceiver::instance().getTriggerStartMs(n) : 0;
+                return a > b ? a : b;
+            };
+
             if (Config.trigPriorityMode == PRIO_NEWEST) {
-                // Most recently activated trigger with useTriggerColor wins
+                // Most recently activated trigger with a custom color wins
                 uint32_t latestMs = 0;
                 int8_t   winner   = -1;
                 for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
-                    const TriggerConfig& tc = Config.triggers[n];
-                    if (tc.enabled && tc.useTriggerColor &&
-                            TriggerManager::instance().isTriggered(n)) {
-                        uint32_t ts = TriggerManager::instance().getTriggerStartMs(n);
+                    if (colorActive(n)) {
+                        uint32_t ts = colorStartMs(n);
                         if (winner < 0 || ts > latestMs) { latestMs = ts; winner = (int8_t)n; }
                     }
                 }
@@ -135,9 +157,8 @@ void loop() {
                 for (uint8_t i = 0; i < MAX_TRIGGERS; i++) {
                     uint8_t n = Config.trigPriorityOrder[i];
                     if (n >= MAX_TRIGGERS) continue;
-                    const TriggerConfig& tc = Config.triggers[n];
-                    if (tc.enabled && tc.useTriggerColor &&
-                            TriggerManager::instance().isTriggered(n)) {
+                    if (colorActive(n)) {
+                        const TriggerConfig& tc = Config.triggers[n];
                         LEDController::instance().setActiveColor(tc.trigLedR,
                                                                   tc.trigLedG,
                                                                   tc.trigLedB);

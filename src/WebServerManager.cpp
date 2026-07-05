@@ -155,6 +155,7 @@ static String buildConfigJSON(bool includeNetwork = true, bool pretty = false) {
     doc["ledR"]          = c.ledR;
     doc["ledG"]          = c.ledG;
     doc["ledB"]          = c.ledB;
+    doc["disconnectIndicator"] = c.disconnectIndicator;
 
     // Talkback Engine
     doc["tbEnabled"]    = c.tbEnabled;
@@ -283,6 +284,7 @@ static bool applyConfigJSON(const String& body) {
     if (doc.containsKey("ledR"))          c.ledR          = doc["ledR"];
     if (doc.containsKey("ledG"))          c.ledG          = doc["ledG"];
     if (doc.containsKey("ledB"))          c.ledB          = doc["ledB"];
+    if (doc.containsKey("disconnectIndicator")) c.disconnectIndicator = doc["disconnectIndicator"];
 
     // Talkback Engine
     if (doc.containsKey("tbEnabled"))   c.tbEnabled   = doc["tbEnabled"];

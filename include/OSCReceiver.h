@@ -46,6 +46,11 @@ public:
     bool isExtTriggerActive(uint8_t n) const {
         return (n < MAX_TRIGGERS) ? _extTrigger[n] : false;
     }
+    // millis() of the trigger's most recent ON edge (0 if not active) — used by
+    // main.cpp for PRIO_NEWEST LED color selection, same as TriggerManager.
+    uint32_t getTriggerStartMs(uint8_t n) const {
+        return (n < MAX_TRIGGERS) ? _startMs[n] : 0;
+    }
 
 private:
     OSCReceiver() {}
@@ -61,6 +66,7 @@ private:
     WiFiUDP  _udp;
     bool     _udpOpen                    = false;
     bool     _extTrigger[MAX_TRIGGERS]   = {};
+    uint32_t _startMs[MAX_TRIGGERS]      = {};   // millis() of each trigger's ON edge
     uint32_t _pulseUntilMs[MAX_TRIGGERS] = {};
     uint8_t  _rxBuf[512];
 };

@@ -20,6 +20,8 @@
 // Helpers: JSON serialisation
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Build the live status JSON (mixer/network state + per-trigger levels) for the
+// WebSocket status broadcast and GET /api/status.
 static String buildStatusJSON() {
     DynamicJsonDocument doc(1024);
     auto& nm  = NetworkManager::instance();
@@ -194,6 +196,8 @@ static void readActionField(JsonObject obj, const char* key, char* dst, size_t d
     }
 }
 
+// Parse a config JSON body and apply every present field to Config (missing keys
+// keep their current value, so a network-free import leaves Wi-Fi untouched).
 static bool applyConfigJSON(const String& body) {
     DBG_PRINTF("[Web] applyConfigJSON: body len=%u, heap=%u\n",
                   (unsigned)body.length(), (unsigned)ESP.getFreeHeap());
@@ -312,6 +316,7 @@ static bool applyConfigJSON(const String& body) {
 // WebSocket event
 // ─────────────────────────────────────────────────────────────────────────────
 
+// WebSocket lifecycle callback: send a status snapshot to each new client.
 void WebServerManager::onWSEvent(AsyncWebSocket* srv,
                                   AsyncWebSocketClient* client,
                                   AwsEventType type,
@@ -330,17 +335,20 @@ void WebServerManager::onWSEvent(AsyncWebSocket* srv,
 // Route setup
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Serve the web UI from LittleFS (serveStatic prefers pre-compressed .gz files).
 void WebServerManager::setupStaticFiles() {
     _server.serveStatic("/", LittleFS, "/")
            .setDefaultFile("index.html")
            .setCacheControl("no-cache");
 }
 
+// Attach the /ws WebSocket handler.
 void WebServerManager::setupWebSocket() {
     _ws.onEvent(WebServerManager::onWSEvent);
     _server.addHandler(&_ws);
 }
 
+// Register all /api/* REST routes (order matters — see the /export note below).
 void WebServerManager::setupAPI() {
     _server.on("/api/status", HTTP_GET,
         [this](AsyncWebServerRequest* req) { handleGetStatus(req); });
@@ -394,10 +402,12 @@ void WebServerManager::setupAPI() {
 // Handler implementations
 // ─────────────────────────────────────────────────────────────────────────────
 
+// GET /api/status → live status JSON.
 void WebServerManager::handleGetStatus(AsyncWebServerRequest* req) {
     req->send(200, "application/json", buildStatusJSON());
 }
 
+// GET /api/config → full config JSON (used to populate the web UI).
 void WebServerManager::handleGetConfig(AsyncWebServerRequest* req) {
     req->send(200, "application/json", buildConfigJSON());
 }
@@ -411,6 +421,8 @@ void WebServerManager::handleExportConfig(AsyncWebServerRequest* req) {
     req->send(res);
 }
 
+// POST /api/config body handler: accumulate chunks, then apply + save + re-init
+// every subsystem so the new config takes effect without a reboot.
 void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
                                          uint8_t* data, size_t len,
                                          size_t index, size_t total) {
@@ -438,12 +450,14 @@ void WebServerManager::handlePostConfig(AsyncWebServerRequest* req,
     }
 }
 
+// POST /api/reboot → acknowledge, then software-restart the ESP32.
 void WebServerManager::handleReboot(AsyncWebServerRequest* req) {
     req->send(200, "application/json", "{\"ok\":true,\"message\":\"Rebooting...\"}");
     delay(500);
     ESP.restart();
 }
 
+// POST /api/reset → wipe settings to factory defaults and reboot.
 void WebServerManager::handleReset(AsyncWebServerRequest* req) {
     ConfigManager::instance().resetToDefaults();
     req->send(200, "application/json",
@@ -452,17 +466,20 @@ void WebServerManager::handleReset(AsyncWebServerRequest* req) {
     ESP.restart();
 }
 
+// POST /api/test → pulse GPIO + LED strip for 3 s to verify wiring.
 void WebServerManager::handleTestOutput(AsyncWebServerRequest* req) {
     OutputController::instance().testPulse(3000);
     LEDController::instance().testPulse(3000);
     req->send(200, "application/json", "{\"ok\":true}");
 }
 
+// POST /api/reconnect → drop and reopen the mixer UDP link.
 void WebServerManager::handleReconnect(AsyncWebServerRequest* req) {
     MixerConnection::instance().reconnect();
     req->send(200, "application/json", "{\"ok\":true}");
 }
 
+// POST /api/monitor → toggle the live OSC-monitor broadcast on/off.
 void WebServerManager::handleMonitorToggle(AsyncWebServerRequest* req) {
     _monitorActive = !_monitorActive;
     String body = _monitorActive
@@ -475,6 +492,7 @@ void WebServerManager::handleMonitorToggle(AsyncWebServerRequest* req) {
 // Public entry points
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Mount LittleFS, wire up WebSocket + routes + static files, and start the server.
 void WebServerManager::begin() {
     if (!LittleFS.begin(true)) {
         DBG_PRINTLN("[Web] LittleFS mount FAILED!");
@@ -501,11 +519,13 @@ void WebServerManager::sendToReadyClients(const String& msg) {
     }
 }
 
+// Push the current status snapshot to all ready WebSocket clients.
 void WebServerManager::broadcastStatus() {
     if (_ws.count() == 0) return;
     sendToReadyClients(buildStatusJSON());
 }
 
+// Push one OSC-monitor sample (all trigger sources + levels) to ready clients.
 void WebServerManager::broadcastOSCMonitor() {
     if (_ws.count() == 0) return;
 
@@ -539,6 +559,7 @@ void WebServerManager::broadcastOSCMonitor() {
     sendToReadyClients(out);
 }
 
+// Per-iteration: reap dead WS clients and fire the status/monitor broadcasts on schedule.
 void WebServerManager::loop() {
     _ws.cleanupClients();
 

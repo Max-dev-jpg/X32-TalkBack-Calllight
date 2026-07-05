@@ -35,6 +35,7 @@ namespace {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Open the OSC receive socket and build the initial trigger path/meter routing.
 void MixerConnection::begin() {
     DBG_PRINTLN("[Mixer] Initialising UDP...");
     if (_udpOpen) {
@@ -67,6 +68,7 @@ void MixerConnection::begin() {
     }
 }
 
+// Drop meter subscriptions and reopen the socket (e.g. after a config change).
 void MixerConnection::reconnect() {
     DBG_PRINTLN("[Mixer] Reconnecting...");
     if (_udpOpen) {
@@ -184,6 +186,7 @@ void MixerConnection::rebuildPaths() {
 
 // ── Outgoing messages ─────────────────────────────────────────────────────────
 
+// Send /xremote so the console pushes real-time parameter changes to us.
 void MixerConnection::sendXRemote() {
     if (!_udpOpen) return;
     size_t len = OSCHandler::buildQuery("/xremote", _txBuf, sizeof(_txBuf));
@@ -269,6 +272,8 @@ void MixerConnection::unsubscribeAllMeters() {
 
 // ── Incoming messages ─────────────────────────────────────────────────────────
 
+// Drain queued UDP packets: parse meter blobs and fader/mute replies, convert to
+// dB, and update the per-trigger levels + connection liveness.
 void MixerConnection::processIncoming() {
     IPAddress expectedIP;
     expectedIP.fromString(Config.mixerIP);
@@ -357,6 +362,8 @@ void MixerConnection::processIncoming() {
 
 // ── Main loop ─────────────────────────────────────────────────────────────────
 
+// Service the link each iteration: process incoming OSC, renew /xremote and meter
+// subscriptions on schedule, self-heal stalled meters, and track connection state.
 void MixerConnection::loop() {
     uint32_t now = millis();
 

@@ -12,6 +12,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Reset trigger state and (re)open the listen socket if external OSC is enabled.
 void OSCReceiver::begin() {
     // Reset all trigger states
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {

@@ -8,6 +8,7 @@
 #include <Arduino.h>
 #include <math.h>
 
+// (Re)initialise the NeoPixel strip from config and blank it. Idempotent.
 void LEDController::begin() {
     uint8_t  pin   = Config.ledPin;
     uint16_t count = Config.ledCount;
@@ -28,11 +29,13 @@ void LEDController::begin() {
                   pin, count, Config.ledBrightness);
 }
 
+// Blank all pixels and push the frame.
 void LEDController::clearStrip() {
     _strip.clear();
     _strip.show();
 }
 
+// Active color scaled by a 0..1 brightness factor → packed NeoPixel color.
 uint32_t LEDController::scaledColor(float brightness) {
     uint8_t r = (uint8_t)(_activeR * brightness);
     uint8_t g = (uint8_t)(_activeG * brightness);
@@ -40,6 +43,7 @@ uint32_t LEDController::scaledColor(float brightness) {
     return _strip.Color(r, g, b);
 }
 
+// Set active/idle state and reset the color to the global config default.
 void LEDController::setTrigger(bool active) {
     _active = active;
     // Reset to global color each frame; main.cpp calls setActiveColor() after
@@ -49,17 +53,20 @@ void LEDController::setTrigger(bool active) {
     _activeB = Config.ledB;
 }
 
+// Override this frame's color (e.g. a per-trigger color); call after setTrigger().
 void LEDController::setActiveColor(uint8_t r, uint8_t g, uint8_t b) {
     _activeR = r;
     _activeG = g;
     _activeB = b;
 }
 
+// Light the strip in the call-light color for a fixed duration (wiring test).
 void LEDController::testPulse(uint32_t durationMs) {
     _testMode  = true;
     _testEndMs = millis() + durationMs;
 }
 
+// Blocking boot indicator: a fading comet running `passes` times across the strip.
 void LEDController::bootAnimation(uint8_t passes) {
     if (!_initialised) return;
     int n = _strip.numPixels();
@@ -96,6 +103,7 @@ void LEDController::bootAnimation(uint8_t passes) {
     _active   = false;
 }
 
+// Force a solid color that overrides flash modes (e.g. the disconnected indicator).
 void LEDController::setForceSolidColor(bool enable, uint8_t r, uint8_t g, uint8_t b) {
     _forceSolid = enable;
     if (enable) {
@@ -106,6 +114,7 @@ void LEDController::setForceSolidColor(bool enable, uint8_t r, uint8_t g, uint8_
     }
 }
 
+// Render one frame: priority is test mode → force-solid → idle-off → flash mode.
 void LEDController::loop() {
     if (!_initialised) return;
 
@@ -157,6 +166,7 @@ void LEDController::loop() {
     updateStrip();
 }
 
+// Paint the active-state pixels for the configured flash mode (solid/blink/pulse/strobe).
 void LEDController::updateStrip() {
     uint32_t now  = millis();
     uint32_t half = Config.flashSpeedMs / 2;

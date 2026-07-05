@@ -65,12 +65,14 @@ public:
                                     size_t blobArgOffset, uint32_t floatIndex);
 
 private:
+    // Write an OSC string (NUL-terminated, 4-byte padded); returns new offset.
     static size_t  writeOSCString(uint8_t* buf, size_t offset,
                                   size_t bufLen, const String& str);
+    // Read a 4-byte-padded OSC string into `out`; returns new offset.
     static size_t  readOSCString(const uint8_t* buf, size_t len,
                                  size_t offset, String& out);
-    static float   readBEFloat(const uint8_t* p);
-    static int32_t readBEInt  (const uint8_t* p);
+    static float   readBEFloat(const uint8_t* p);   // big-endian float (OSC wire order)
+    static int32_t readBEInt  (const uint8_t* p);   // big-endian int32 (OSC wire order)
     static float   readLEFloat(const uint8_t* p);   // little-endian float (blob)
     static int32_t readLEInt  (const uint8_t* p);   // little-endian int32 (blob header)
 };

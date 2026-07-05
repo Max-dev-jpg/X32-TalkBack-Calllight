@@ -19,7 +19,7 @@
 #endif
 
 // ── Firmware identity ─────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION    "1.1.0"
+#define FIRMWARE_VERSION    "2.0.0"
 #define DEVICE_NAME         "TalkBack-CallLight"
 
 // ── Access Point defaults (user can change password via web UI) ───────────────

@@ -8,6 +8,7 @@
 
 class LEDController {
 public:
+    // Singleton accessor.
     static LEDController& instance() {
         static LEDController inst;
         return inst;
@@ -16,7 +17,7 @@ public:
     // Initialise strip with pin/count from config.  Safe to call again after
     // config change (reinitialises internally).
     void begin();
-    void loop();
+    void loop();   // render the current frame according to state + flash mode
 
     void setTrigger(bool active);
     // Override the strip color for the current frame. Call before loop().
@@ -36,7 +37,7 @@ private:
 
     // Update physical strip pixels based on current state + flash mode
     void updateStrip();
-    void clearStrip();
+    void clearStrip();   // blank all pixels and push the frame
 
     // Helpers
     uint32_t scaledColor(float brightness);  // uses _activeR/G/B

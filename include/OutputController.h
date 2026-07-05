@@ -7,13 +7,14 @@
 
 class OutputController {
 public:
+    // Singleton accessor.
     static OutputController& instance() {
         static OutputController inst;
         return inst;
     }
 
-    void begin();
-    void loop();
+    void begin();   // configure the output GPIO from current config
+    void loop();    // advance the active flash mode and drive the pin
 
     // Drive output based on trigger state (called by main loop after TriggerLogic)
     void setTrigger(bool active);
@@ -26,7 +27,7 @@ public:
 private:
     OutputController() {}
 
-    void setPinState(bool on);
+    void setPinState(bool on);   // write the pin, honouring the invert-polarity config
 
     bool     _active         = false;
     bool     _testMode       = false;

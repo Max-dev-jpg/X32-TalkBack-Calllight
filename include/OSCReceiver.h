@@ -23,6 +23,7 @@
 
 class OSCReceiver {
 public:
+    // Singleton accessor.
     static OSCReceiver& instance() {
         static OSCReceiver inst;
         return inst;
@@ -49,7 +50,7 @@ public:
 private:
     OSCReceiver() {}
 
-    void processIncoming();
+    void processIncoming();   // read queued UDP packets and dispatch to handlers
 
     // Set trigger n on/off and fire its configured actions.
     void handleTriggerN(uint8_t n, bool on);

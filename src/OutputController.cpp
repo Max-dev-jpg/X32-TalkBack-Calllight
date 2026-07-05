@@ -8,6 +8,7 @@
 #include <Arduino.h>
 #include <math.h>
 
+// Configure the output pin and drive it to the inactive state.
 void OutputController::begin() {
     uint8_t pin = Config.outputPin;
     pinMode(pin, OUTPUT);
@@ -15,22 +16,26 @@ void OutputController::begin() {
     DBG_PRINTF("[Output] GPIO pin %d initialised.\n", pin);
 }
 
+// Write the pin at the given logical level, applying the invert-polarity config.
 void OutputController::setPinState(bool on) {
     bool physical = Config.outputInvert ? !on : on;
     digitalWrite(Config.outputPin, physical ? HIGH : LOW);
     _pinState = on;
 }
 
+// Set the desired output state (actual pin driven by loop()'s flash logic).
 void OutputController::setTrigger(bool active) {
     _active = active;
 }
 
+// Force the output on for a fixed duration (wiring test / manual trigger).
 void OutputController::testPulse(uint32_t durationMs) {
     _testMode  = true;
     _testEndMs = millis() + durationMs;
     DBG_PRINTF("[Output] Test pulse for %u ms\n", durationMs);
 }
 
+// Drive the pin each iteration: honour test mode, then the active flash mode.
 void OutputController::loop() {
     uint32_t now = millis();
 

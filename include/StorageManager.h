@@ -9,6 +9,7 @@
 
 class StorageManager {
 public:
+    // Singleton accessor.
     static StorageManager& instance() {
         static StorageManager inst;
         return inst;
@@ -27,8 +28,7 @@ private:
     StorageManager() {}
     Preferences _prefs;
 
-    // Helper: open namespace RW / RO
-    bool openRW();
-    bool openRO();
-    void close();
+    bool openRW();   // open the NVS namespace read-write
+    bool openRO();   // open the NVS namespace read-only
+    void close();    // close the NVS namespace
 };

@@ -14,12 +14,13 @@
 
 class TriggerManager {
 public:
+    // Singleton accessor.
     static TriggerManager& instance() {
         static TriggerManager inst;
         return inst;
     }
 
-    void begin();
+    void begin();  // reset every trigger's state machine to its at-rest level
     void loop();   // processes all triggers; pulls levels from MixerConnection
 
     // ── Per-trigger queries ───────────────────────────────────────────────────
@@ -60,5 +61,6 @@ private:
 
     TState _state[MAX_TRIGGERS];
 
+    // Advance one trigger's state machine: smooth, threshold, debounce/hold/release.
     void processTrigger(uint8_t n, float rawLevel, uint32_t now);
 };

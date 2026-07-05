@@ -10,11 +10,13 @@
 
 class WebServerManager {
 public:
+    // Singleton accessor.
     static WebServerManager& instance() {
         static WebServerManager inst;
         return inst;
     }
 
+    // Mount LittleFS, register routes/WebSocket, and start the HTTP server.
     void begin();
 
     // Broadcast current status to all WebSocket clients (call every ~1 s)
@@ -32,22 +34,22 @@ private:
     WebServerManager() : _server(80), _ws("/ws") {}
 
     // ── Route setup ──────────────────────────────────────────────────────────
-    void setupStaticFiles();
-    void setupAPI();
-    void setupWebSocket();
+    void setupStaticFiles();   // serve the LittleFS web UI (with .gz support)
+    void setupAPI();           // register the /api/* REST + WebSocket routes
+    void setupWebSocket();     // attach the /ws WebSocket handler
 
     // ── REST handlers ────────────────────────────────────────────────────────
-    void handleGetStatus (AsyncWebServerRequest* req);
-    void handleGetConfig (AsyncWebServerRequest* req);
-    void handleExportConfig(AsyncWebServerRequest* req);
-    void handlePostConfig(AsyncWebServerRequest* req,
+    void handleGetStatus (AsyncWebServerRequest* req);   // GET /api/status → live JSON
+    void handleGetConfig (AsyncWebServerRequest* req);   // GET /api/config → full config JSON
+    void handleExportConfig(AsyncWebServerRequest* req); // GET /api/config/export → download
+    void handlePostConfig(AsyncWebServerRequest* req,    // POST /api/config → apply + save
                           uint8_t* data, size_t len,
                           size_t index, size_t total);
-    void handleReboot        (AsyncWebServerRequest* req);
-    void handleReset         (AsyncWebServerRequest* req);
-    void handleTestOutput    (AsyncWebServerRequest* req);
-    void handleReconnect     (AsyncWebServerRequest* req);
-    void handleMonitorToggle (AsyncWebServerRequest* req);
+    void handleReboot        (AsyncWebServerRequest* req);   // POST /api/reboot
+    void handleReset         (AsyncWebServerRequest* req);   // POST /api/reset → factory defaults
+    void handleTestOutput    (AsyncWebServerRequest* req);   // POST /api/test → pulse outputs
+    void handleReconnect     (AsyncWebServerRequest* req);   // POST /api/reconnect → mixer relink
+    void handleMonitorToggle (AsyncWebServerRequest* req);   // POST /api/monitor → toggle OSC monitor
 
     // Send a message only to WS clients whose TX queue has room (weak-link safe)
     void sendToReadyClients(const String& msg);

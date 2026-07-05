@@ -12,6 +12,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Reset talkback state and (re)open the UDP socket if talkback is enabled.
 void TalkbackEngine::begin() {
     _stateA = false;
     _stateB = false;

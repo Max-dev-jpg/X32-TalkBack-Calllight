@@ -6,12 +6,14 @@
 #include "config.h"
 #include <Arduino.h>
 
+// Open/close the NVS namespace (read-write, read-only, close).
 bool StorageManager::openRW() { return _prefs.begin(NVS_NAMESPACE, false); }
 bool StorageManager::openRO() { return _prefs.begin(NVS_NAMESPACE, true);  }
 void StorageManager::close()  { _prefs.end(); }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Write every field of the config to NVS under short per-field keys.
 bool StorageManager::save(const DeviceConfig& c) {
     if (!openRW()) return false;
 
@@ -87,6 +89,8 @@ bool StorageManager::save(const DeviceConfig& c) {
     return true;
 }
 
+// Load the config from NVS, keeping each field's default if its key is missing.
+// Returns false if nothing has ever been stored (the "initialised" flag absent).
 bool StorageManager::load(DeviceConfig& c) {
     if (!openRO()) return false;
 
@@ -166,6 +170,7 @@ bool StorageManager::load(DeviceConfig& c) {
     return true;
 }
 
+// Wipe all stored keys in the namespace (factory reset).
 bool StorageManager::erase() {
     if (!openRW()) return false;
     bool ok = _prefs.clear();

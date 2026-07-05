@@ -6,6 +6,7 @@
 #include "StorageManager.h"
 #include <Arduino.h>
 
+// Load defaults, then overlay whatever is stored in NVS (stored values win).
 void ConfigManager::begin()
 {
     applyDefaults();
@@ -13,6 +14,7 @@ void ConfigManager::begin()
     DBG_PRINTLN("[Config] Configuration loaded.");
 }
 
+// Persist the current config to NVS.
 bool ConfigManager::save()
 {
     bool ok = StorageManager::instance().save(_cfg);
@@ -20,6 +22,7 @@ bool ConfigManager::save()
     return ok;
 }
 
+// Erase NVS and restore compiled-in defaults (factory reset).
 void ConfigManager::resetToDefaults()
 {
     StorageManager::instance().erase();
@@ -27,6 +30,7 @@ void ConfigManager::resetToDefaults()
     DBG_PRINTLN("[Config] Reset to defaults.");
 }
 
+// Populate _cfg with the compiled-in factory defaults from config.h.
 void ConfigManager::applyDefaults()
 {
     // Network
@@ -190,9 +194,9 @@ int32_t ConfigManager::meterChannelId(const TriggerConfig& t) const
 //   /meters/6 (4) : ONE channel strip — [0]=pre [1]=gate [2]=comp [3]=post
 //
 // Post-fader exists in a bulk bank ONLY for Main L/R (/meters/2[22]). Every other
-// post-fader value comes from /meters/6 (single channel), served by the
-// round-robin scanner in MixerConnection. Likewise Main pre-fader is not in a
-// bulk bank, so it also uses /meters/6.
+// post-fader value comes from /meters/6 (single channel); the console keeps one
+// global /meters/6 selection, so MixerConnection lets only one such trigger use
+// it. Likewise Main pre-fader is not in a bulk bank, so it also uses /meters/6.
 //
 // tap (meterSignalType): 0=pre, 1=gate, 2=comp, 3=post.
 // =============================================================================

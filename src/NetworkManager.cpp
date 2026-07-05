@@ -7,6 +7,7 @@
 #include "config.h"
 #include <Arduino.h>
 
+// Start networking: join the configured Wi-Fi, or fall back to the AP; then mDNS + OTA.
 void NetworkManager::begin() {
     DBG_PRINTLN("[Network] Initialising...");
     _staConnected = false;
@@ -227,6 +228,7 @@ void NetworkManager::loop() {
 }
 
 
+// Number of stations currently connected to our Access Point.
 uint8_t NetworkManager::getAPClientCount() const {
     return WiFi.softAPgetStationNum();
 }

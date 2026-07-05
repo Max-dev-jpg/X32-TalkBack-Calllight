@@ -19,6 +19,8 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// One-time boot: bring up config, LEDs, network, web server, mixer link, and
+// all engines in dependency order.
 void setup() {
     DBG_BEGIN(SERIAL_BAUD);
     delay(200);
@@ -72,6 +74,8 @@ void setup() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Main loop: service all subsystems, then combine every output source into the
+// final GPIO / LED-strip state each iteration.
 void loop() {
     // Network (WiFi reconnect, OTA, mDNS)
     NetworkManager::instance().loop();

@@ -18,6 +18,7 @@ uint8_t ActionEngine::_suppressMask = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Open the shared send-only UDP socket used to push OSC actions to the mixer.
 void ActionEngine::begin() {
     _udp.stop();
     _udpReady = _udp.begin(ACT_SEND_PORT);
@@ -82,6 +83,8 @@ String ActionEngine::buildMutePath(uint8_t chType, uint8_t chNum) {
 
 // ── Action executor ───────────────────────────────────────────────────────────
 
+// Parse a JSON action array and run each action (solo/mute/osc/out/forceout…),
+// tracking 'out'/'forceout' overrides under the given source's bit.
 void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
     if (!jsonStr || jsonStr[0] == '\0') return;
 
@@ -155,6 +158,7 @@ void ActionEngine::execute(const char* jsonStr, uint8_t srcId) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Clear a source's 'out' and 'forceout' bits (call when its event ends).
 void ActionEngine::clearOutput(uint8_t srcId) {
     _outputMask   &= ~(1u << srcId);
     _suppressMask &= ~(1u << srcId);

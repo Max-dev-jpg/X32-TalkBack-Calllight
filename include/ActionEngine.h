@@ -41,10 +41,10 @@ public:
     static bool isForcedOff() { return _suppressMask != 0; }
 
 private:
-    static void    sendInt   (const String& addr, int32_t val);
-    static void    sendNoArg (const String& addr);
-    static uint8_t channelToSoloID(uint8_t chType, uint8_t chNum);
-    static String  buildMutePath  (uint8_t chType, uint8_t chNum);
+    static void    sendInt   (const String& addr, int32_t val);   // OSC message with one int arg
+    static void    sendNoArg (const String& addr);                // OSC message with no arguments
+    static uint8_t channelToSoloID(uint8_t chType, uint8_t chNum);// channel type+number → X32 solo bus id
+    static String  buildMutePath  (uint8_t chType, uint8_t chNum);// channel type+number → /…/mix/on path
 
     static WiFiUDP _udp;
     static bool    _udpReady;

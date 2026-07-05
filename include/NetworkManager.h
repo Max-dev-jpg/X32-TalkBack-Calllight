@@ -18,6 +18,7 @@ class NetworkManager {
     };
 
 public:
+    // Singleton accessor.
     static NetworkManager& instance() {
         static NetworkManager inst;
         return inst;
@@ -36,15 +37,16 @@ public:
     String  getSTAIP()       const { return WiFi.localIP().toString(); }
     String  getAPIP()        const { return WiFi.softAPIP().toString(); }
 
-    void applyConfig() ;
+    // Re-apply Wi-Fi settings after a config change (reconnects only if changed).
+    void applyConfig();
 
 private:
     NetworkManager() {}
 
-    void startAP();
-    void startSTA();
-    void setupMDNS();
-    void setupOTA();
+    void startAP();    // bring up the fallback Access Point (AP+STA mode)
+    void startSTA();   // connect to the configured Wi-Fi network as a station
+    void setupMDNS();  // advertise the device as <hostname>.local
+    void setupOTA();   // enable ArduinoOTA firmware updates
 
     bool     _staConnected        = false;
     bool     _otaInitialised      = false;
@@ -53,5 +55,5 @@ private:
     uint32_t _lastRSSIUpdate       = 0;
 
     NetworkConfigSnapshot _lastConfig;
-    bool hasConfigChanged();
+    bool hasConfigChanged();   // true if Wi-Fi/IP settings differ from _lastConfig
 };

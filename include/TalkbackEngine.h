@@ -16,13 +16,14 @@
 
 class TalkbackEngine {
 public:
+    // Singleton accessor.
     static TalkbackEngine& instance() {
         static TalkbackEngine inst;
         return inst;
     }
 
-    void begin();
-    void loop();
+    void begin();   // open the UDP socket and subscribe to the talkback state
+    void loop();    // poll talkback state, re-subscribe, and run edge actions
 
     // Live state accessors (used by WebServerManager for status JSON)
     bool isTalkbackAActive() const { return _stateA; }
@@ -36,16 +37,14 @@ private:
     TalkbackEngine() {}
 
     // UDP helpers (send only – uses own socket so it works even without ActionEngine)
-    void sendQuery (const String& address);
-    void sendInt   (const String& address, int32_t value);
-    void sendNoArg (const String& address);
+    void sendQuery (const String& address);                 // address-only query
+    void sendInt   (const String& address, int32_t value);  // message with one int arg
+    void sendNoArg (const String& address);                 // message with no arguments
 
-    // Incoming UDP parser
-    void processIncoming();
+    void processIncoming();     // parse queued UDP packets → update _stateA/_stateB
 
-    // React to a talkback state change
-    void onTalkbackOn (bool isA);
-    void onTalkbackOff(bool isA);
+    void onTalkbackOn (bool isA);   // run the button's ON action list (A or B)
+    void onTalkbackOff(bool isA);   // run the button's OFF action list (A or B)
 
     WiFiUDP  _udp;
     bool     _udpOpen = false;

@@ -9,6 +9,7 @@
 // Internal helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Write an OSC string: bytes + NUL, then pad with NULs to a 4-byte boundary.
 size_t OSCHandler::writeOSCString(uint8_t* buf, size_t offset,
                                    size_t bufLen, const String& str) {
   for (size_t i = 0; i < str.length() && offset < bufLen; ++i) {
@@ -23,6 +24,7 @@ size_t OSCHandler::writeOSCString(uint8_t* buf, size_t offset,
   return offset;
 }
 
+// Read a NUL-terminated OSC string into `out` and skip its 4-byte padding.
 size_t OSCHandler::readOSCString(const uint8_t* buf, size_t len,
                                   size_t offset, String& out) {
     out = "";
@@ -33,13 +35,15 @@ size_t OSCHandler::readOSCString(const uint8_t* buf, size_t len,
     return offset;
 }
 
+// Decode a big-endian IEEE-754 float (OSC wire order).
 float OSCHandler::readBEFloat(const uint8_t* p) {
     uint32_t raw = readBEInt(p);
-    float value; 
-    memcpy(&value, &raw, sizeof(value)); 
+    float value;
+    memcpy(&value, &raw, sizeof(value));
     return value;
 }
 
+// Decode a big-endian int32 (OSC wire order).
 int32_t OSCHandler::readBEInt(const uint8_t* p) {
     return (int32_t)(((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
                      ((uint32_t)p[2] <<  8) |  (uint32_t)p[3]);
@@ -63,6 +67,7 @@ int32_t OSCHandler::readLEInt(const uint8_t* p) {
 // Public encode API
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Encode an address-only message with an empty type-tag list.
 size_t OSCHandler::buildQuery(const String& address, uint8_t* buf, size_t bufLen) {
     memset(buf, 0, bufLen);
     size_t offset = 0;
@@ -71,6 +76,7 @@ size_t OSCHandler::buildQuery(const String& address, uint8_t* buf, size_t bufLen
     return offset;
 }
 
+// Encode an address + ",i" type tag + one big-endian int32 argument.
 size_t OSCHandler::buildIntMsg(const String& address, int32_t value,
                                uint8_t* buf, size_t bufLen) {
     memset(buf, 0, bufLen);
@@ -86,6 +92,7 @@ size_t OSCHandler::buildIntMsg(const String& address, int32_t value,
     return offset;
 }
 
+// Encode an address + ",s" type tag + one OSC-string argument.
 size_t OSCHandler::buildStringMsg(const String& address,
                                    const String& strArg,
                                    uint8_t* buf, size_t bufLen) {

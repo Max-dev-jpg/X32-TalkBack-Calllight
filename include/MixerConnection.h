@@ -15,14 +15,15 @@
 
 class MixerConnection {
 public:
+    // Singleton accessor.
     static MixerConnection& instance() {
         static MixerConnection inst;
         return inst;
     }
 
-    void begin();
-    void loop();
-    void reconnect();
+    void begin();      // open the UDP socket and build the initial trigger paths
+    void loop();       // pump incoming OSC, keep /xremote + meter subs alive
+    void reconnect();  // drop and re-establish the mixer link (e.g. on config change)
 
     // ── Per-trigger levels ────────────────────────────────────────────────────
     float getLevelForTrigger(uint8_t n) const {
@@ -43,12 +44,12 @@ public:
 private:
     MixerConnection() {}
 
-    void sendXRemote();
-    void sendFaderMuteQueries();
+    void sendXRemote();              // /xremote — subscribe to real-time parameter pushes
+    void sendFaderMuteQueries();     // one-shot query of every FADER/MUTE trigger's path
     void sendMeterSubscriptions();   // (re)register all meter /batchsubscribe subs
     void renewMeterSubscriptions();  // /renew (no arg) — extend all active subs
     void unsubscribeAllMeters();     // /unsubscribe — stop all subscriptions
-    void processIncoming();
+    void processIncoming();          // parse queued UDP packets → update levels/state
 
     // Rebuild _triggerPaths[] from current config; called at begin/reconnect
     void rebuildPaths();

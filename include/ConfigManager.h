@@ -95,14 +95,15 @@ struct DeviceConfig {
 // =============================================================================
 class ConfigManager {
 public:
+    // Singleton accessor.
     static ConfigManager& instance() {
         static ConfigManager inst;
         return inst;
     }
 
-    void begin();
-    bool save();
-    void resetToDefaults();
+    void begin();            // load config from NVS, applying defaults if none stored
+    bool save();             // persist the current config to NVS
+    void resetToDefaults();  // restore factory defaults and persist them
 
     // Build the X32 OSC path for a given trigger's channel + signal config
     String  buildOSCPathForTrigger(const TriggerConfig& t) const;
@@ -134,7 +135,7 @@ public:
 
 private:
     ConfigManager() {}
-    void applyDefaults();
+    void applyDefaults();   // fill _cfg with the compiled-in factory defaults
     DeviceConfig _cfg;
 };
 

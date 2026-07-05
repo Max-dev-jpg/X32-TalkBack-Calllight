@@ -19,6 +19,7 @@ static float restLevelFor(uint8_t n) {
     return MeterScale::restLevel(c.signalSource, c.meterSignalType);
 }
 
+// Reset every trigger to its at-rest level and clear its output override.
 void TriggerManager::begin() {
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         _state[n] = TState{};
@@ -28,6 +29,7 @@ void TriggerManager::begin() {
     DBG_PRINTF("[Trigger] TriggerManager initialised (%u slots)\n", MAX_TRIGGERS);
 }
 
+// True if any enabled trigger is currently in the triggered state.
 bool TriggerManager::isAnyTriggered() const {
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         if (Config.triggers[n].enabled && _state[n].triggered) return true;
@@ -126,6 +128,8 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Run every enabled trigger each iteration; hold disabled/disconnected triggers
+// at rest so a stale level can't keep them active.
 void TriggerManager::loop() {
     uint32_t now = millis();
     bool mixerConnected = MixerConnection::instance().isConnected();

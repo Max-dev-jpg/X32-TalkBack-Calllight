@@ -98,6 +98,10 @@ void MixerConnection::rebuildPaths() {
             _triggerPaths[n] = "";
             continue;
         }
+        // Start every trigger at its polarity-aware at-rest level, so before the
+        // first real value arrives it reads INACTIVE (a fader/mute trigger would
+        // otherwise read a stale 0 and an inverted one would fire on boot).
+        _triggerLevels[n] = MeterScale::restLevel(t.signalSource, t.meterSignalType, t.invert);
         if (t.signalSource == SIG_METER) {
             // Meters use no _triggerPaths entry; the fader/mute matcher ignores
             // them. meterRoute() picks the bank + index. /meters/6 has ONE
@@ -124,10 +128,8 @@ void MixerConnection::rebuildPaths() {
                 }
             }
 
-            // No live meter source (blocked or unsupported, e.g. DCA): hold the
-            // at-rest (silence) level so a stale value can't keep it active.
-            if (_meterBank[n] == 0xFF)
-                _triggerLevels[n] = MeterScale::restLevel(SIG_METER, t.meterSignalType);
+            // Blocked or unsupported (e.g. DCA) meters keep the at-rest level set
+            // above, so a stale value can't hold the trigger active.
         } else {
             _triggerPaths[n] = ConfigManager::instance().buildOSCPathForTrigger(t);
         }

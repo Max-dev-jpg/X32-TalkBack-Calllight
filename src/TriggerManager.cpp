@@ -16,7 +16,7 @@
 // (0 dB = full scale).
 static float restLevelFor(uint8_t n) {
     const TriggerConfig& c = Config.triggers[n];
-    return MeterScale::restLevel(c.signalSource, c.meterSignalType);
+    return MeterScale::restLevel(c.signalSource, c.meterSignalType, c.invert);
 }
 
 // Reset every trigger to its at-rest level and clear its output override.
@@ -49,19 +49,27 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
     float alpha = constrain(c.smoothing, 0.01f, 1.0f);
     s.smoothed  = alpha * rawLevel + (1.0f - alpha) * s.smoothed;
 
-    // ── Effective threshold (with hysteresis) ─────────────────────────────────
-    // Mute is binary (0/1) and ignores the dB threshold; everything else compares
-    // in dB, so no 0..1 clamp here.
-    float effThresh;
+    // ── Threshold + hysteresis (polarity-aware, strict, clamped to the domain) ─
+    // "above" = the signal currently meets the activation condition.
+    bool above;
     if (c.signalSource == SIG_MUTE) {
-        effThresh = 0.5f;
+        // Binary mute state; invert flips which state fires.
+        above = c.invert ? (s.smoothed < 0.5f) : (s.smoothed >= 0.5f);
+    } else if (!c.invert) {
+        // Fire when the signal rises strictly ABOVE the threshold; release below
+        // (threshold − hysteresis). Strict '>' means a gain-reduction threshold of
+        // 0 does NOT fire when there is no reduction. The release point is clamped
+        // to the signal minimum so it stays reachable (GR can't go below 0).
+        float rel = fmaxf(c.threshold - c.hysteresis,
+                          MeterScale::domainMin(c.signalSource, c.meterSignalType));
+        above = s.smoothed > (s.triggered ? rel : c.threshold);
     } else {
-        effThresh = s.triggered ? (c.threshold - c.hysteresis) : c.threshold;
+        // Inverted: fire when the signal falls strictly BELOW the threshold;
+        // release above (threshold + hysteresis), clamped to the signal maximum.
+        float rel = fminf(c.threshold + c.hysteresis,
+                          MeterScale::domainMax(c.signalSource, c.meterSignalType));
+        above = s.smoothed < (s.triggered ? rel : c.threshold);
     }
-
-    // ── Inversion: "above" means signal meets the activation condition ─────────
-    bool above = c.invert ? (s.smoothed < effThresh)
-                           : (s.smoothed >= effThresh);
 
     // ── Debounce ──────────────────────────────────────────────────────────────
     if (above != s.rawAbove) {

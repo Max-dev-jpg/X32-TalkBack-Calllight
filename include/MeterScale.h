@@ -105,14 +105,35 @@ inline float toDb(uint8_t signalSource, uint8_t meterTap, float raw) {
     }
 }
 
-// ── "At-rest" value (no signal) in the same domain, used to init/reset the EMA
-//    so a fresh trigger doesn't read as loud (0 dB = full scale, not silence).
-inline float restLevel(uint8_t signalSource, uint8_t meterTap) {
-    if (signalSource == SIG_MUTE) return 0.0f;                 // muted
+// ── Signal domain bounds (in the converted dB / 0-1 units) ────────────────────
+// Minimum ("quiet / no reduction / muted") and maximum ("loud / full reduction /
+// unmuted") of each source, used to clamp the hysteresis release point and to
+// pick a polarity-aware at-rest value.
+inline float domainMin(uint8_t signalSource, uint8_t meterTap) {
+    if (signalSource == SIG_MUTE)  return 0.0f;                        // muted
     if (signalSource == SIG_METER)
-        return (meterTap == 1 || meterTap == 2) ? 0.0f         // GR: no reduction
-                                                : METER_LEVEL_FLOOR;  // level: -60 dB
-    return DB_FLOOR;                                           // fader: -90 dB
+        return (meterTap == 1 || meterTap == 2) ? 0.0f                 // GR: no reduction
+                                                : METER_LEVEL_FLOOR;   // level: -60 dB
+    return DB_FLOOR;                                                   // fader: -90 dB
+}
+inline float domainMax(uint8_t signalSource, uint8_t meterTap) {
+    if (signalSource == SIG_MUTE)  return 1.0f;                        // unmuted
+    if (signalSource == SIG_METER) {
+        if (meterTap == 1) return 60.0f;                              // gate GR (max)
+        if (meterTap == 2) return 30.0f;                              // comp GR (max)
+        return 0.0f;                                                   // level: 0 dB cap
+    }
+    return 10.0f;                                                      // fader: +10 dB
+}
+
+// ── "At-rest" value (no signal) used to init/reset the EMA so a fresh trigger
+//    reads as INACTIVE for its polarity: a normal trigger fires above the
+//    threshold, so it rests at the domain minimum; an inverted trigger fires
+//    below the threshold, so it rests at the domain maximum. Without this an
+//    inverted trigger would start active after a reboot.
+inline float restLevel(uint8_t signalSource, uint8_t meterTap, bool invert) {
+    return invert ? domainMax(signalSource, meterTap)
+                  : domainMin(signalSource, meterTap);
 }
 
 } // namespace MeterScale

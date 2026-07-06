@@ -78,7 +78,7 @@ inline float gateToDb(float v) {
 inline float compToDb(float v) {
     static const MPoint P[] = {
         {0.0311f, 30}, {0.1246f, 18}, {0.1764f, 15}, {0.2497f, 12},
-        {0.3526f,  9}, {0.4988f,  6}, {0.7055f,  3}, {0.9999f,  0}
+        {0.3526f,  9}, {0.4988f,  6}, {0.7055f,  3}, {0.9998f,  0}
     };
     return interpDb(P, (int)(sizeof(P) / sizeof(P[0])), v, 30.0f, 0.0f);
 }

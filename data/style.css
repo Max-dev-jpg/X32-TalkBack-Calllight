@@ -172,11 +172,24 @@ h3 {
 
 /* Level bar */
 .level-bar-wrap {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
   background: var(--bg3);
   border-radius: 100px;
   height: 5px;
-  overflow: hidden;
+  position: relative;
+}
+/* Threshold marker: small triangle pointing down onto the bar (hidden by default) */
+.level-thresh {
+  position: absolute;
+  top: -6px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid var(--warn);
+  transform: translateX(-4px);
+  pointer-events: none;
+  display: none;
 }
 .level-bar {
   height: 100%;

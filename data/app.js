@@ -6,6 +6,28 @@
 
 const NUM_TRIGGERS = 4;
 let triggerSignalSources = Array(NUM_TRIGGERS).fill(0);
+let triggerMeterTaps     = Array(NUM_TRIGGERS).fill(0);
+let triggerThresholds    = Array(NUM_TRIGGERS).fill(NaN);   // fallback for the status marker
+
+// ── X32 fader taper ───────────────────────────────────────────────────────────
+// Position 0..1 ↔ dB, matching the console fader (and the firmware's faderToDb).
+// Used so meters/sliders in the UI are spaced like a real fader instead of linear
+// in dB (fine resolution near 0 dB, compressed at the bottom).
+function faderPosToDb(p) {
+  if (p <= 0)      return -90;
+  if (p >= 1)      return 10;
+  if (p < 0.0625)  return (p / 0.0625)            * 30 - 90;
+  if (p < 0.25)    return ((p - 0.0625) / 0.1875) * 30 - 60;
+  if (p < 0.5)     return ((p - 0.25)   / 0.25)   * 20 - 30;
+  return                  ((p - 0.5)    / 0.5)    * 20 - 10;
+}
+function dbToFaderPos(db) {
+  const d = Math.max(-90, Math.min(10, db));
+  if (d < -60) return (d + 90) / 30 * 0.0625;
+  if (d < -30) return 0.0625 + (d + 60) / 30 * 0.1875;
+  if (d < -10) return 0.25   + (d + 30) / 20 * 0.25;
+  return              0.5    + (d + 10) / 20 * 0.5;
+}
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(btn => {
@@ -208,6 +230,46 @@ function validateM6BeforeSave() {
   return true;
 }
 
+// Make trigger n's sub-tab the visible one (so its fields become focusable, which
+// the native validation bubble requires).
+function showTrigSubtab(n) {
+  document.querySelectorAll('.trig-subtab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.trig-sub-content').forEach(s => s.classList.remove('active'));
+  const tab     = document.querySelector('.trig-subtab[data-trig="' + n + '"]');
+  const content = document.getElementById('trig-sub-' + n);
+  if (tab)     tab.classList.add('active');
+  if (content) content.classList.add('active');
+}
+
+// Validate the per-trigger number fields (channel number, threshold, hysteresis,
+// smoothing) using the browser's native constraint validation — same popup style
+// as the rest of the forms. On the first invalid field it switches to that
+// trigger's sub-tab and shows the native bubble, then blocks the save. Only the
+// fields that actually apply to a trigger are checked (min/max are already set
+// per channel type / source by onTrigChTypeChange + updateThresholdDisplay).
+function validateTriggersNative() {
+  for (let n = 0; n < NUM_TRIGGERS; n++) {
+    if (!document.getElementById('t' + n + '-enabled').checked) continue;
+    const sig    = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+    const chType = parseInt(document.getElementById('t' + n + '-chtype').value) || 0;
+    const custom = (document.getElementById('t' + n + '-oscpath').value || '').trim();
+
+    const ids = [];
+    if (!custom && chType !== 6 && chType !== 7) ids.push('t' + n + '-chnum');   // no channel for Main/Mono/custom
+    if (sig !== 2) ids.push('t' + n + '-thresh-n', 't' + n + '-hyst-n', 't' + n + '-smooth-n'); // not for Mute
+
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el && !el.checkValidity()) {
+        showTrigSubtab(n);      // reveal the field so the bubble can attach
+        el.reportValidity();    // native browser validation popup
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // ── Simple modal popup (themed, self-contained) ───────────────────────────────
 function showInfoModal(title, bodyHtml) {
   let ov = document.getElementById('info-modal');
@@ -268,17 +330,19 @@ function formatSignalValue(value, signalSource) {
   return val.toFixed(1) + ' dB';
 }
 
-// Map a value (dB, or 0/1 for mute) to a 0..1 bar/graph fraction. GR taps
-// (gate/comp, 0..~40 dB) fill upward; levels use a -60..0 dB window.
+// Map a value (dB, or 0/1 for mute) to a 0..1 bar/graph fraction.
+//   • mute            → 0 or 1
+//   • gate/comp GR    → linear fraction of the tap's max reduction (gate 60, comp 30)
+//   • fader / level   → X32 fader-taper position, so the bar lines up with a real
+//                       fader (log-like spacing) instead of being linear in dB.
 function levelFraction(n, value) {
   const v = parseFloat(value) || 0;
   const sig = triggerSignalSources[n] ?? 0;
   if (sig === 2) return v >= 0.5 ? 1 : 0;                 // mute
-  const tapEl = document.getElementById('t' + n + '-metertap');
-  const tap = tapEl ? parseInt(tapEl.value) : -1;
+  const tap = triggerMeterTaps[n] ?? -1;
   if (sig === 1 && (tap === 1 || tap === 2))              // gate/comp gain reduction
-    return Math.max(0, Math.min(1, v / 40));
-  return Math.max(0, Math.min(1, (v + 60) / 60));         // level / fader: -60..0 dB
+    return Math.max(0, Math.min(1, v / (tap === 1 ? 60 : 30)));
+  return dbToFaderPos(v);                                 // fader / level: fader taper
 }
 
 
@@ -305,6 +369,54 @@ function thresholdRange(n) {
   return { lo: -90, hi: 10, label: 'Threshold — fader (dB)' };            // fader
 }
 
+// The threshold slider uses fader-taper travel for fader + meter-level sources
+// (so it feels like a physical fader); gain-reduction taps stay linear in dB.
+function threshTapered(n) {
+  const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
+  if (sigSrc === 0) return true;                       // fader
+  if (sigSrc === 1) {                                  // meter
+    const tap = parseInt(document.getElementById('t' + n + '-metertap').value);
+    return tap !== 1 && tap !== 2;                     // level (pre/post) yes, GR no
+  }
+  return false;
+}
+// Convert between the tapered slider position (0..1) and dB within [lo,hi],
+// following the fader taper (sub-ranged so the slider spans the whole travel).
+function threshPosToDb(pos01, lo, hi) {
+  const fLo = dbToFaderPos(lo), fHi = dbToFaderPos(hi);
+  return faderPosToDb(fLo + pos01 * (fHi - fLo));
+}
+function threshDbToPos(db, lo, hi) {
+  const fLo = dbToFaderPos(lo), fHi = dbToFaderPos(hi);
+  return (fHi === fLo) ? 0 : (dbToFaderPos(db) - fLo) / (fHi - fLo);
+}
+// Slider moved → update the dB number field.
+function onThreshSlider(el) {
+  const n = parseInt(el.id.match(/^t(\d+)-/)[1]);
+  const num = document.getElementById('t' + n + '-thresh-n');
+  if (!num) return;
+  if (threshTapered(n)) {
+    const r = thresholdRange(n);
+    num.value = (Math.round(threshPosToDb(el.value / 1000, r.lo, r.hi) * 10) / 10);
+  } else {
+    num.value = el.value;
+  }
+}
+// dB number typed → update the (possibly tapered) slider position.
+function onThreshNumber(el) {
+  const n = parseInt(el.id.match(/^t(\d+)-/)[1]);
+  const range = document.getElementById('t' + n + '-thresh');
+  if (!range) return;
+  const db = parseFloat(el.value);
+  if (!Number.isFinite(db)) return;
+  if (threshTapered(n)) {
+    const r = thresholdRange(n);
+    range.value = Math.round(threshDbToPos(db, r.lo, r.hi) * 1000);
+  } else {
+    range.value = db;
+  }
+}
+
 function updateThresholdDisplay(n) {
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   const range  = document.getElementById('t' + n + '-thresh');
@@ -328,15 +440,23 @@ function updateThresholdDisplay(n) {
   }
 
   const r = thresholdRange(n);
-  range.min = r.lo; range.max = r.hi; range.step = 0.5;
-  num.min   = r.lo; num.max   = r.hi; num.step   = 0.1;
+  num.min = r.lo; num.max = r.hi; num.step = 0.1;
 
   // Keep the current dB value, clamped into the new range.
   let v = parseFloat(num.value);
   if (!Number.isFinite(v)) v = r.lo;
   v = Math.max(r.lo, Math.min(r.hi, v));
-  range.value = v;
-  num.value   = v;
+  num.value = v;
+
+  if (threshTapered(n)) {
+    // Fader-taper travel: slider holds a 0..1000 position, number holds dB.
+    range.min = 0; range.max = 1000; range.step = 1;
+    range.value = Math.round(threshDbToPos(v, r.lo, r.hi) * 1000);
+  } else {
+    // Linear dB slider (gain reduction).
+    range.min = r.lo; range.max = r.hi; range.step = 0.5;
+    range.value = v;
+  }
   // Show the valid range inline so the user sees the domain of the current source.
   if (labelText) labelText.textContent = r.label + '  ·  range ' + r.lo + '…' + r.hi;
 }
@@ -700,6 +820,8 @@ function loadTriggerConfig(triggers) {
     setVal('t' + n + '-chnum',   t.channelNumber  ?? 1);
     const sigSrc = t.signalSource ?? 0;
     triggerSignalSources[n] = sigSrc;
+    triggerMeterTaps[n]     = t.meterSignalType ?? 0;
+    triggerThresholds[n]    = Number.isFinite(t.threshold) ? t.threshold : NaN;
     setVal('t' + n + '-sigsrc',  sigSrc);
     setVal('t' + n + '-metertap', t.meterSignalType);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
@@ -780,6 +902,7 @@ function collectTriggers() {
 // Trigger form — all 4 triggers + priority settings in one POST
 document.getElementById('form-trigger').addEventListener('submit', async e => {
   e.preventDefault();
+  if (!validateTriggersNative()) return; // native popup for bad channel/threshold/hyst/smoothing
   if (!validateM6BeforeSave()) return;   // refuse impossible /meters/6 combos
   const prioMode = parseInt(document.getElementById('trig-prio-mode').value || '0');
   const data = {
@@ -1016,6 +1139,16 @@ function connectWS() {
 // ── Status update ─────────────────────────────────────────────────────────────
 function updateStatus(d) {
   const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  // Position the threshold triangle marker on the level bar. frac = null hides it
+  // (e.g. mute / disabled — no threshold). label is shown as a hover tooltip.
+  const setThresh = (n, frac, label) => {
+    const mark = document.getElementById('st-trig-' + n + '-thresh-mark');
+    if (!mark) return;
+    if (frac === null) { mark.style.display = 'none'; mark.title = ''; return; }
+    mark.style.display = 'block';   // must be explicit — CSS default is display:none
+    mark.style.left = (Math.max(0, Math.min(1, frac)) * 100) + '%';
+    mark.title = 'Threshold ' + label;
+  };
 
   // Mixer
   const mixOk = !!d.mixerConnected;
@@ -1026,6 +1159,10 @@ function updateStatus(d) {
   // Per-trigger status cards (Trigger 1–4)
   if (Array.isArray(d.triggers)) {
     d.triggers.forEach((t, n) => {
+      // Keep source/tap authoritative from live data (used by formatSignalValue
+      // and levelFraction) so the display is right even before the config loads.
+      if (t.signalSource !== undefined) triggerSignalSources[n] = t.signalSource;
+      if (t.meterTap     !== undefined) triggerMeterTaps[n]     = t.meterTap;
       const bar      = document.getElementById('st-trig-' + n + '-bar');
       const statusEl = document.getElementById('st-trig-' + n + '-status');
 
@@ -1033,6 +1170,7 @@ function updateStatus(d) {
       if (!t.enabled) {
         setText('st-trig-' + n + '-level',  '—');
         setText('st-trig-' + n + '-smooth', '—');
+        setThresh(n, null);
         if (bar) { bar.style.width = '0%'; bar.classList.add('disabled'); }
         if (statusEl) {
           statusEl.textContent = 'Disabled';
@@ -1046,6 +1184,14 @@ function updateStatus(d) {
       const src = triggerSignalSources[n] ?? 0;
       setText('st-trig-' + n + '-level',  formatSignalValue(lvRaw, src));
       setText('st-trig-' + n + '-smooth', formatSignalValue(svRaw, src));
+      // Threshold triangle marker (Mute has no threshold → no marker). Prefer the
+      // live value from the firmware, else fall back to the loaded config value.
+      const thr = (t.threshold !== undefined) ? parseFloat(t.threshold) : triggerThresholds[n];
+      if (src === 2 || !Number.isFinite(thr)) {
+        setThresh(n, null);
+      } else {
+        setThresh(n, levelFraction(n, thr), thr.toFixed(1) + ' dB');
+      }
       if (bar) { bar.classList.remove('disabled'); bar.style.width = (levelFraction(n, lvRaw) * 100) + '%'; }
       if (statusEl) {
         if (t.triggered) {
@@ -1207,6 +1353,8 @@ function updateOSCMonitor(d) {
   monitors.forEach(m => {
     const n = m.n;
     if (n >= NUM_TRIGGERS) return;
+    if (m.signalSource !== undefined) triggerSignalSources[n] = m.signalSource;
+    if (m.meterTap     !== undefined) triggerMeterTaps[n]     = m.meterTap;
     const val = parseFloat(m.value ?? 0);
     const st  = MON_STATE[n];
 

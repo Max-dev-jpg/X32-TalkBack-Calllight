@@ -23,7 +23,7 @@
 // Build the live status JSON (mixer/network state + per-trigger levels) for the
 // WebSocket status broadcast and GET /api/status.
 static String buildStatusJSON() {
-    DynamicJsonDocument doc(1024);
+    DynamicJsonDocument doc(1536);
     auto& nm  = NetworkManager::instance();
     auto& mix = MixerConnection::instance();
     auto& tm  = TriggerManager::instance();
@@ -49,10 +49,15 @@ static String buildStatusJSON() {
     JsonArray tArr = doc.createNestedArray("triggers");
     for (uint8_t n = 0; n < MAX_TRIGGERS; n++) {
         JsonObject t = tArr.createNestedObject();
-        t["triggered"] = tm.isTriggered(n);
-        t["level"]     = mix.getLevelForTrigger(n);
-        t["smoothed"]  = tm.getSmoothedLevel(n);
-        t["enabled"]   = Config.triggers[n].enabled;
+        t["triggered"]    = tm.isTriggered(n);
+        t["level"]        = mix.getLevelForTrigger(n);
+        t["smoothed"]     = tm.getSmoothedLevel(n);
+        t["enabled"]      = Config.triggers[n].enabled;
+        // Source + tap so the UI can format the value (dB / Muted-Active) and scale
+        // the bar correctly without waiting for the full config to load.
+        t["signalSource"] = Config.triggers[n].signalSource;
+        t["meterTap"]     = Config.triggers[n].meterSignalType;
+        t["threshold"]    = Config.triggers[n].threshold;   // shown on the status card
     }
 
     // Backward-compat fields (trigger 0)
@@ -554,6 +559,8 @@ void WebServerManager::broadcastOSCMonitor() {
         m["smoothed"]  = TriggerManager::instance().getSmoothedLevel(n);
         m["triggered"] = TriggerManager::instance().isTriggered(n);
         m["enabled"]   = tc.enabled;
+        m["signalSource"] = tc.signalSource;   // so the UI formats mute vs dB correctly
+        m["meterTap"]     = tc.meterSignalType;
     }
 
     String out;

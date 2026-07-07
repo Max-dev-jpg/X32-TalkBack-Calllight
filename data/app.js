@@ -30,6 +30,21 @@ function dbToFaderPos(db) {
   return              0.5    + (d + 10) / 20 * 0.5;
 }
 
+// ── Smoothing: UI "amount" ↔ firmware EMA alpha ──────────────────────────────
+// The firmware stores an EMA alpha (0.01..1) where HIGHER = faster = LESS smooth,
+// which is counter-intuitive. The UI shows a 0..100 % "smoothing amount" where
+// higher = smoother, mapped logarithmically to alpha (time constant τ ≈ 20 ms/α):
+//   0 % → α 1   (τ ~20 ms, no smoothing)   50 % → α 0.1 (τ ~200 ms)
+// 100 % → α 0.01 (τ ~2 s, max smoothing).
+function smoothDisplayToAlpha(pct) {
+  const p = Math.max(0, Math.min(100, parseFloat(pct) || 0)) / 100;
+  return Math.max(0.01, Math.min(1, Math.pow(10, -2 * p)));
+}
+function alphaToSmoothDisplay(alpha) {
+  const a = Math.max(0.01, Math.min(1, parseFloat(alpha) || 1));
+  return Math.round(-Math.log10(a) / 2 * 100);
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -852,8 +867,9 @@ function loadTriggerConfig(triggers) {
     setVal('t' + n + '-thresh-n', roundInput(thrDb) ?? -20);
     setVal('t' + n + '-hyst',    roundInput(t.hysteresis)     ?? 3);
     setVal('t' + n + '-hyst-n',  roundInput(t.hysteresis)     ?? 3);
-    setVal('t' + n + '-smooth',  roundInput(t.smoothing)      ?? 0.15);
-    setVal('t' + n + '-smooth-n',roundInput(t.smoothing)      ?? 0.15);
+    const smoothPct = alphaToSmoothDisplay(t.smoothing ?? 0.15);
+    setVal('t' + n + '-smooth',  smoothPct);
+    setVal('t' + n + '-smooth-n',smoothPct);
     setVal('t' + n + '-hold',    t.holdTimeMs     ?? 500);
     setVal('t' + n + '-rel',     t.releaseDelayMs ?? 1000);
     setVal('t' + n + '-dbnc',    t.debounceMs     ?? 50);
@@ -902,7 +918,7 @@ function collectTriggers() {
       customOSCPath:  getVal('t' + n + '-oscpath'),
       threshold:      getThresholdValue(n),
       hysteresis:     getNum('t' + n + '-hyst'),
-      smoothing:      getNum('t' + n + '-smooth'),
+      smoothing:      smoothDisplayToAlpha(getNum('t' + n + '-smooth-n')),
       holdTimeMs:     getInt('t' + n + '-hold'),
       releaseDelayMs: getInt('t' + n + '-rel'),
       debounceMs:     getInt('t' + n + '-dbnc'),
@@ -1191,6 +1207,12 @@ function updateStatus(d) {
     mark.title = 'Threshold ' + label;
   };
 
+  // Keep the OSC-monitor button in sync with the device. After a reboot the device
+  // reports monitorActive=false, so the stale "Stop Monitor" flips back to "Start".
+  if (d.monitorActive !== undefined && !!d.monitorActive !== monitorRunning) {
+    setMonitorUI(!!d.monitorActive);
+  }
+
   // Mixer
   const mixOk = !!d.mixerConnected;
   setText('st-mixer-con', mixOk ? 'Connected' : 'Disconnected');
@@ -1235,7 +1257,9 @@ function updateStatus(d) {
       } else {
         setThresh(n, levelFraction(n, thr), cst ? thr.toFixed(3) : thr.toFixed(1) + ' dB');
       }
-      if (bar) { bar.classList.remove('disabled'); bar.style.width = (levelFraction(n, lvRaw) * 100) + '%'; }
+      // Bar shows the SMOOTHED value (what the trigger compares against the
+      // threshold marker), so the configured smoothing is actually visible.
+      if (bar) { bar.classList.remove('disabled'); bar.style.width = (levelFraction(n, svRaw) * 100) + '%'; }
       if (statusEl) {
         if (t.triggered) {
           statusEl.textContent = 'ACTIVE';
@@ -1356,23 +1380,29 @@ const MON_STATE = Array.from({ length: NUM_TRIGGERS }, () =>
   ({ min: null, max: null, sum: 0, count: 0 })
 );
 
-async function toggleMonitor() {
-  const res  = await fetch('/api/monitor', { method: 'POST' });
-  if (!res.ok) return;
-  const json = await res.json();
-  monitorRunning = json.active;
+// Reflect the monitor on/off state in the button + log/canvas panels.
+function setMonitorUI(active) {
+  monitorRunning = active;
   const btn = document.getElementById('mon-toggle');
-  if (monitorRunning) {
-    btn.textContent = '⏹ Stop Monitor'; btn.className = 'btn-warning';
+  if (btn) {
+    btn.textContent = active ? '⏹ Stop Monitor' : '▶ Start Monitor';
+    btn.className   = active ? 'btn-warning' : 'btn-primary';
+  }
+  if (active) {
     for (let n = 0; n < NUM_TRIGGERS; n++) {
       const log    = document.getElementById('mon-log-' + n);
       const canvas = document.getElementById('mon-canvas-' + n);
       if (log)    log.classList.add('active');
       if (canvas) canvas.classList.add('active');
     }
-  } else {
-    btn.textContent = '▶ Start Monitor'; btn.className = 'btn-primary';
   }
+}
+
+async function toggleMonitor() {
+  const res  = await fetch('/api/monitor', { method: 'POST' });
+  if (!res.ok) return;
+  const json = await res.json();
+  setMonitorUI(json.active);
 }
 
 function clearMonitor(n) {

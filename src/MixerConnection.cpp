@@ -226,7 +226,7 @@ void MixerConnection::sendMeterSubscriptions() {
         if (!_meterBankUsed[b]) continue;
 
         size_t len = OSCHandler::buildBatchSubscribe(
-            kMeterAlias[b], kMeterPath[b], 0, kMeterIEnd[b], 1,
+            kMeterAlias[b], kMeterPath[b], 0, kMeterIEnd[b], METER_SUBSCRIBE_TF,
             _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);
@@ -239,7 +239,7 @@ void MixerConnection::sendMeterSubscriptions() {
     if (_m6ChannelId >= 0) {
         // /meters/6: first int = channel_id, second unused, then time factor.
         size_t len = OSCHandler::buildBatchSubscribe(
-            kM6Alias, "/meters/6", _m6ChannelId, 0, 1, _txBuf, sizeof(_txBuf));
+            kM6Alias, "/meters/6", _m6ChannelId, 0, METER_SUBSCRIBE_TF, _txBuf, sizeof(_txBuf));
         _udp.beginPacket(Config.mixerIP, Config.oscTxPort);
         _udp.write(_txBuf, len);
         _udp.endPacket();

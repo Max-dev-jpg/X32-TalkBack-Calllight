@@ -44,6 +44,7 @@ static String buildStatusJSON() {
     doc["extOscEnabled"]  = Config.extOscEnabled;
     doc["extOscPort"]     = Config.extOscPort;
     doc["extTrigger"]     = OSCReceiver::instance().isExtTriggerActive();
+    doc["monitorActive"]  = WebServerManager::instance().isMonitorActive(); // sync monitor button after reboot
 
     // Per-trigger states
     JsonArray tArr = doc.createNestedArray("triggers");

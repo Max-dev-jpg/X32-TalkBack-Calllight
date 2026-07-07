@@ -46,9 +46,20 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
     const TriggerConfig& c = Config.triggers[n];
     TState&              s = _state[n];
 
-    // ── EMA smoothing ─────────────────────────────────────────────────────────
+    // ── EMA smoothing (fixed-rate) ────────────────────────────────────────────
+    // Advance the filter one step per TRIG_SMOOTHING_INTERVAL_MS, independent of
+    // how often loop() calls us, so alpha behaves as a real time constant instead
+    // of collapsing to "no smoothing" at high loop rates.
     float alpha = constrain(c.smoothing, 0.01f, 1.0f);
-    s.smoothed  = alpha * rawLevel + (1.0f - alpha) * s.smoothed;
+    if (s.lastSmoothMs == 0) {
+        s.smoothed     = rawLevel;    // first sample: seed, no start-up lag
+        s.lastSmoothMs = now;
+    } else if (now - s.lastSmoothMs >= TRIG_SMOOTHING_INTERVAL_MS) {
+        uint32_t steps = (now - s.lastSmoothMs) / TRIG_SMOOTHING_INTERVAL_MS;
+        for (uint32_t i = 0; i < steps && i < 64; i++)   // cap catch-up after a long gap
+            s.smoothed = alpha * rawLevel + (1.0f - alpha) * s.smoothed;
+        s.lastSmoothMs += steps * TRIG_SMOOTHING_INTERVAL_MS;
+    }
 
     // ── Threshold + hysteresis (polarity-aware, clamped to the domain) ─────────
     // "above" = the signal currently meets the activation condition. A custom OSC
@@ -157,7 +168,8 @@ void TriggerManager::loop() {
                 _state[n].triggered = false;
                 ActionEngine::clearOutput(n);
             }
-            _state[n].smoothed = restLevelFor(n);
+            _state[n].smoothed     = restLevelFor(n);
+            _state[n].lastSmoothMs = 0;   // re-seed the EMA when re-enabled
             continue;
         }
 
@@ -169,6 +181,7 @@ void TriggerManager::loop() {
                 ActionEngine::clearOutput(n);
             }
             _state[n].smoothed      = restLevelFor(n);
+            _state[n].lastSmoothMs  = 0;   // re-seed the EMA on reconnect
             _state[n].rawAbove      = false;
             _state[n].debouncing    = false;
             _state[n].inHold        = false;

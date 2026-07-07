@@ -48,6 +48,7 @@ private:
 
     struct TState {
         float    smoothed       = 0.0f;
+        uint32_t lastSmoothMs   = 0;   // last time the EMA was advanced (fixed-rate smoothing)
         bool     triggered      = false;
         bool     rawAbove       = false;
         bool     debouncing     = false;

@@ -19,7 +19,7 @@
 #endif
 
 // ── Firmware identity ─────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION    "2.0.0"
+#define FIRMWARE_VERSION    "2.1.0"
 #define DEVICE_NAME         "TalkBack-CallLight"
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@
 // brownout trip point and reboot-loop the ESP32 before it starts. Disabling the
 // detector lets it boot. This removes low-voltage protection — the real fix is a
 // stiffer 5 V supply / a bulk capacitor near the board. Set to 0 to keep it on.
-#define DISABLE_BROWNOUT_DETECTOR 1
+#define DISABLE_BROWNOUT_DETECTOR 0
 
 // ── Access Point defaults (user can change password via web UI) ───────────────
 #define DEFAULT_AP_SSID        "TalkBack-CallLight"
@@ -59,6 +59,14 @@
 #define DEFAULT_HYSTERESIS       3.0f    // dB
 #define DEFAULT_SMOOTHING        0.15f   // EMA alpha (0.01-1.0)
 #define DEFAULT_DEBOUNCE_MS      50
+
+// The EMA smoothing is advanced one step per this many milliseconds — NOT once
+// per main-loop iteration (the loop runs thousands of times per second, which
+// would make the filter converge almost instantly and the smoothing invisible).
+// With this fixed tick, alpha is a real time constant: τ ≈ interval / alpha
+// (e.g. alpha 0.15 → ~130 ms, alpha 0.01 → ~2 s). Roughly matches the ~50 ms
+// meter frame rate while giving sub-frame resolution.
+#define TRIG_SMOOTHING_INTERVAL_MS  20
 
 // Values within this many dB of a source's "quiet" end (no gain reduction / -60 /
 // -90 / unmuted) are snapped to that end before the threshold compare. This keeps
@@ -159,6 +167,11 @@
 #define TB_ACTION_JSON_LEN  1024
 
 // ── Meter subscription handling ──────────────────────────────────────────────
+// /batchsubscribe time factor (tf, the last int in the request). The console
+// sends each meter blob every ~tf × 50 ms: 1 = fastest (~20 Hz), 2 = ~10 Hz, …
+// Lower = smoother/more responsive triggers but more UDP traffic + CPU; raise it
+// to lighten the load at the cost of coarser metering.
+#define METER_SUBSCRIBE_TF  1
 // Meter subscriptions (/batchsubscribe) last ~10 s on the console and are kept
 // alive with a no-arg /renew sent every METER_RENEW_INTERVAL_MS. Keep this well
 // below 10000; a lower value tolerates more lost /renew packets (a renew that

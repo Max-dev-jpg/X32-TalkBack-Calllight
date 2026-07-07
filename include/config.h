@@ -22,6 +22,13 @@
 #define FIRMWARE_VERSION    "2.0.0"
 #define DEVICE_NAME         "TalkBack-CallLight"
 
+// ── Boot ──────────────────────────────────────────────────────────────────────
+// On a marginal supply the WiFi power-up current spike can dip the rail below the
+// brownout trip point and reboot-loop the ESP32 before it starts. Disabling the
+// detector lets it boot. This removes low-voltage protection — the real fix is a
+// stiffer 5 V supply / a bulk capacitor near the board. Set to 0 to keep it on.
+#define DISABLE_BROWNOUT_DETECTOR 1
+
 // ── Access Point defaults (user can change password via web UI) ───────────────
 #define DEFAULT_AP_SSID        "TalkBack-CallLight"
 #define DEFAULT_AP_PASSWORD    "" //no password
@@ -52,6 +59,14 @@
 #define DEFAULT_HYSTERESIS       3.0f    // dB
 #define DEFAULT_SMOOTHING        0.15f   // EMA alpha (0.01-1.0)
 #define DEFAULT_DEBOUNCE_MS      50
+
+// Values within this many dB of a source's "quiet" end (no gain reduction / -60 /
+// -90 / unmuted) are snapped to that end before the threshold compare. This keeps
+// meter noise + EMA residual near the floor from holding a trigger active — a
+// compressor/gate meter reads a little reduction even when idle. It does NOT shift
+// a meaningful threshold, only the quiet extreme. Raise it if an idle compressor
+// still triggers at threshold 0 (check the OSC monitor for its resting dB value).
+#define TRIG_FLOOR_DEADBAND_DB   0.05f
 
 // ── Flash modes ───────────────────────────────────────────────────────────────
 #define FLASH_SOLID    0

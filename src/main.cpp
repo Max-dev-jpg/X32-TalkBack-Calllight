@@ -4,6 +4,8 @@
 // =============================================================================
 
 #include <Arduino.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 #include "config.h"
 #include "ConfigManager.h"
 #include "StorageManager.h"
@@ -22,6 +24,10 @@
 // One-time boot: bring up config, LEDs, network, web server, mixer link, and
 // all engines in dependency order.
 void setup() {
+#if DISABLE_BROWNOUT_DETECTOR
+    // Must run first — before WiFi/peripherals draw current (see config.h).
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+#endif
     DBG_BEGIN(SERIAL_BAUD);
     delay(200);
 

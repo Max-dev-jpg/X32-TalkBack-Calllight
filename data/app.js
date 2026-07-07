@@ -1119,22 +1119,43 @@ async function loadConfig() {
 let ws = null;
 let wsRetryTimer = null;
 let wsRetryDelay = 1000;
+let lastWsMsgMs = 0;
 
 function connectWS() {
+  clearTimeout(wsRetryTimer);
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(proto + '//' + location.host + '/ws');
-  ws.onopen  = () => { console.log('[WS] Connected'); wsRetryDelay = 1000; clearTimeout(wsRetryTimer); };
+  ws.onopen  = () => { console.log('[WS] Connected'); wsRetryDelay = 1000; lastWsMsgMs = Date.now(); };
   ws.onmessage = e => {
+    lastWsMsgMs = Date.now();
     try {
       const d = JSON.parse(e.data);
       if (d.type === 'osc') updateOSCMonitor(d);
       else                  updateStatus(d);
     } catch(_) {}
   };
-  ws.onclose = ws.onerror = () => {
-    wsRetryTimer = setTimeout(() => { wsRetryDelay = Math.min(wsRetryDelay * 1.5, 15000); connectWS(); }, wsRetryDelay);
-  };
+  ws.onclose = () => scheduleReconnectWS();
+  ws.onerror = () => { try { ws.close(); } catch(_) {} };   // onclose then schedules the retry
 }
+
+function scheduleReconnectWS() {
+  clearTimeout(wsRetryTimer);
+  wsRetryTimer = setTimeout(() => {
+    wsRetryDelay = Math.min(wsRetryDelay * 1.5, 5000);       // recover within a few seconds
+    connectWS();
+  }, wsRetryDelay);
+}
+
+// Watchdog: the device broadcasts status every ~300 ms. A reboot/flash often
+// doesn't cleanly close the socket, so the browser can hold it "open" for a long
+// time with no data. If it goes silent for a few seconds, force a reconnect so
+// the status comes back on its own (no manual page reload needed).
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN && Date.now() - lastWsMsgMs > 4000) {
+    console.log('[WS] connection stale — reconnecting');
+    try { ws.close(); } catch(_) {}   // → onclose → scheduleReconnectWS()
+  }
+}, 2000);
 
 // ── Status update ─────────────────────────────────────────────────────────────
 function updateStatus(d) {

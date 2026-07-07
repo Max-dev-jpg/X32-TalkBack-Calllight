@@ -49,26 +49,30 @@ void TriggerManager::processTrigger(uint8_t n, float rawLevel, uint32_t now) {
     float alpha = constrain(c.smoothing, 0.01f, 1.0f);
     s.smoothed  = alpha * rawLevel + (1.0f - alpha) * s.smoothed;
 
-    // ── Threshold + hysteresis (polarity-aware, strict, clamped to the domain) ─
+    // ── Threshold + hysteresis (polarity-aware, clamped to the domain) ─────────
     // "above" = the signal currently meets the activation condition.
     bool above;
     if (c.signalSource == SIG_MUTE) {
         // Binary mute state; invert flips which state fires.
         above = c.invert ? (s.smoothed < 0.5f) : (s.smoothed >= 0.5f);
     } else if (!c.invert) {
-        // Fire when the signal rises strictly ABOVE the threshold; release below
-        // (threshold − hysteresis). Strict '>' means a gain-reduction threshold of
-        // 0 does NOT fire when there is no reduction. The release point is clamped
-        // to the signal minimum so it stays reachable (GR can't go below 0).
-        float rel = fmaxf(c.threshold - c.hysteresis,
-                          MeterScale::domainMin(c.signalSource, c.meterSignalType));
-        above = s.smoothed > (s.triggered ? rel : c.threshold);
+        // Fire when the signal rises above the threshold; release below
+        // (threshold − hysteresis), clamped to the signal minimum so it stays
+        // reachable (gain reduction can't go below 0). Snap values sitting within
+        // the floor deadband down to the floor so meter noise / EMA residual near
+        // "no reduction" can't latch a threshold-0 trigger.
+        float lo  = MeterScale::domainMin(c.signalSource, c.meterSignalType);
+        float sig = (s.smoothed - lo < TRIG_FLOOR_DEADBAND_DB) ? lo : s.smoothed;
+        float rel = fmaxf(c.threshold - c.hysteresis, lo);
+        above = sig > (s.triggered ? rel : c.threshold);
     } else {
-        // Inverted: fire when the signal falls strictly BELOW the threshold;
-        // release above (threshold + hysteresis), clamped to the signal maximum.
-        float rel = fminf(c.threshold + c.hysteresis,
-                          MeterScale::domainMax(c.signalSource, c.meterSignalType));
-        above = s.smoothed < (s.triggered ? rel : c.threshold);
+        // Inverted: fire when the signal falls below the threshold; release above
+        // (threshold + hysteresis), clamped to the signal maximum. Snap values
+        // within the deadband of the (quiet) ceiling up to it.
+        float hi  = MeterScale::domainMax(c.signalSource, c.meterSignalType);
+        float sig = (hi - s.smoothed < TRIG_FLOOR_DEADBAND_DB) ? hi : s.smoothed;
+        float rel = fminf(c.threshold + c.hysteresis, hi);
+        above = sig < (s.triggered ? rel : c.threshold);
     }
 
     // ── Debounce ──────────────────────────────────────────────────────────────

@@ -25,9 +25,11 @@ public:
     void begin();   // open the UDP socket and subscribe to the talkback state
     void loop();    // poll talkback state, re-subscribe, and run edge actions
 
-    // Live state accessors (used by WebServerManager for status JSON)
-    bool isTalkbackAActive() const { return _stateA; }
-    bool isTalkbackBActive() const { return _stateB; }
+    // Live state accessors (used by WebServerManager for status JSON).
+    // Reports the effective output state, so with A/B linked both read active
+    // when either console button is pressed.
+    bool isTalkbackAActive() const { return _outA; }
+    bool isTalkbackBActive() const { return _outB; }
 
     // Simulate a talkback button press/release from an external source (OSC receiver).
     // isA=true → button A, isA=false → button B; active=true → pressed, false → released.
@@ -43,14 +45,18 @@ private:
 
     void processIncoming();     // parse queued UDP packets → update _stateA/_stateB
 
-    void onTalkbackOn (bool isA);   // run the button's ON action list (A or B)
-    void onTalkbackOff(bool isA);   // run the button's OFF action list (A or B)
+    void updateOutputs();           // recompute effective A/B outputs from raw button states
+    void applyOutput(bool isA, bool desired);  // run ON/OFF action list on an output edge
 
     WiFiUDP  _udp;
     bool     _udpOpen = false;
 
+    // Raw console button states.
     bool     _stateA  = false;
     bool     _stateB  = false;
+    // Effective output states actually driven (differ from raw when A/B linked).
+    bool     _outA    = false;
+    bool     _outB    = false;
 
     uint32_t _lastXRemoteMs = 0;
 

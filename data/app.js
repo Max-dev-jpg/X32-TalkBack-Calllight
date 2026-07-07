@@ -8,6 +8,7 @@ const NUM_TRIGGERS = 4;
 let triggerSignalSources = Array(NUM_TRIGGERS).fill(0);
 let triggerMeterTaps     = Array(NUM_TRIGGERS).fill(0);
 let triggerThresholds    = Array(NUM_TRIGGERS).fill(NaN);   // fallback for the status marker
+let triggerCustom        = Array(NUM_TRIGGERS).fill(false); // custom OSC path → linear 0..1 scaling
 
 // ── X32 fader taper ───────────────────────────────────────────────────────────
 // Position 0..1 ↔ dB, matching the console fader (and the firmware's faderToDb).
@@ -65,6 +66,9 @@ for (let n = 0; n < NUM_TRIGGERS; n++) {
   if (tap) tap.addEventListener('change', () => onTrigMeterTapChange(n));
   const num = document.getElementById('t' + n + '-chnum');
   if (num) num.addEventListener('change', () => onTrigChNumChange(n));
+  // A custom OSC path switches the threshold/scale to linear 0..1 — refresh live.
+  const osc = document.getElementById('t' + n + '-oscpath');
+  if (osc) osc.addEventListener('input', () => updateThresholdDisplay(n));
   updateTrigBodyVisibility(n);
 }
 
@@ -324,8 +328,10 @@ function onTrigChTypeChange(n) {
 }
 
 // Values now arrive from the firmware already in dB (fader + meter); mute is 0/1.
-function formatSignalValue(value, signalSource) {
+// A custom OSC path carries a raw linear 0..1 value (pan, EQ freq, …) — show it as-is.
+function formatSignalValue(value, signalSource, custom) {
   const val = parseFloat(value) || 0;
+  if (custom) return val.toFixed(3);
   if (signalSource === 2) return val >= 0.5 ? 'Active' : 'Muted';
   return val.toFixed(1) + ' dB';
 }
@@ -337,6 +343,7 @@ function formatSignalValue(value, signalSource) {
 //                       fader (log-like spacing) instead of being linear in dB.
 function levelFraction(n, value) {
   const v = parseFloat(value) || 0;
+  if (triggerCustom[n]) return Math.max(0, Math.min(1, v)); // custom path: linear 0..1
   const sig = triggerSignalSources[n] ?? 0;
   if (sig === 2) return v >= 0.5 ? 1 : 0;                 // mute
   const tap = triggerMeterTaps[n] ?? -1;
@@ -354,9 +361,18 @@ function getThresholdValue(n) {
   return Number.isFinite(v) ? v : 0;
 }
 
+// True when trigger n has a custom OSC path typed in (form context, reads the DOM).
+// Such a path carries a raw linear 0..1 value, so its threshold/scale go linear 0..1.
+function formHasCustomPath(n) {
+  const el = document.getElementById('t' + n + '-oscpath');
+  return !!(el && el.value.trim() !== '');
+}
+
 // dB range offered for the threshold slider/number, depending on signal + tap.
 // Ranges match each source's real signal domain (measured meter/GR curves).
 function thresholdRange(n) {
+  if (formHasCustomPath(n))   // custom OSC path — raw linear value
+    return { lo: 0, hi: 1, label: 'Threshold — custom OSC (0–1)' };
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   if (sigSrc === 1) {   // meter
     const tap = parseInt(document.getElementById('t' + n + '-metertap').value);
@@ -372,6 +388,7 @@ function thresholdRange(n) {
 // The threshold slider uses fader-taper travel for fader + meter-level sources
 // (so it feels like a physical fader); gain-reduction taps stay linear in dB.
 function threshTapered(n) {
+  if (formHasCustomPath(n)) return false;              // custom path: linear 0..1
   const sigSrc = parseInt(document.getElementById('t' + n + '-sigsrc').value) || 0;
   if (sigSrc === 0) return true;                       // fader
   if (sigSrc === 1) {                                  // meter
@@ -423,26 +440,28 @@ function updateThresholdDisplay(n) {
   const num    = document.getElementById('t' + n + '-thresh-n');
   if (!range || !num) return;
 
+  const custom = formHasCustomPath(n);
   const label = range.closest('label');
   const labelText = label ? label.querySelector('.threshold-label-text') : null;
 
-  // Mute has no threshold/hysteresis/smoothing — hide those rows.
+  // Mute has no threshold/hysteresis/smoothing — hide those rows. A custom OSC
+  // path is a continuous value, so it keeps the threshold rows even on a mute source.
   const thresholdLabel  = label;
   const hysteresisLabel = document.getElementById('t' + n + '-hyst')?.closest('label');
   const smoothingLabel  = document.getElementById('t' + n + '-smooth')?.closest('label');
-  const showThreshold = sigSrc !== 2;
+  const showThreshold = sigSrc !== 2 || custom;
   [thresholdLabel, hysteresisLabel, smoothingLabel].forEach(el => {
     if (el) el.style.display = showThreshold ? '' : 'none';
   });
-  if (sigSrc === 2) {
+  if (!showThreshold) {
     if (labelText) labelText.textContent = 'Threshold (disabled for Mute)';
     return;
   }
 
   const r = thresholdRange(n);
-  num.min = r.lo; num.max = r.hi; num.step = 0.1;
+  num.min = r.lo; num.max = r.hi; num.step = custom ? 0.01 : 0.1;
 
-  // Keep the current dB value, clamped into the new range.
+  // Keep the current value, clamped into the new range.
   let v = parseFloat(num.value);
   if (!Number.isFinite(v)) v = r.lo;
   v = Math.max(r.lo, Math.min(r.hi, v));
@@ -453,8 +472,8 @@ function updateThresholdDisplay(n) {
     range.min = 0; range.max = 1000; range.step = 1;
     range.value = Math.round(threshDbToPos(v, r.lo, r.hi) * 1000);
   } else {
-    // Linear dB slider (gain reduction).
-    range.min = r.lo; range.max = r.hi; range.step = 0.5;
+    // Linear slider (gain reduction in dB, or custom path in 0..1).
+    range.min = r.lo; range.max = r.hi; range.step = custom ? 0.01 : 0.5;
     range.value = v;
   }
   // Show the valid range inline so the user sees the domain of the current source.
@@ -786,10 +805,10 @@ function drawMonitorGraph(n) {
 function loadTBConfig(c) {
   const tbEn  = document.getElementById('tb-enabled');
   const tbMon = document.getElementById('tb-monitor');
-  const tbBfA = document.getElementById('tb-b-follows-a');
+  const tbLink = document.getElementById('tb-link-ab');
   if (tbEn)  tbEn.checked  = !!c.tbEnabled;
   if (tbMon) tbMon.value   = c.tbMonitor ?? 0;
-  if (tbBfA) tbBfA.checked = !!c.tbBFollowsA;
+  if (tbLink) tbLink.checked = !!c.tbLinkAB;
 
   tbState.aOn  = safeParseJSON(c.tbAOnJson);
   tbState.aOff = safeParseJSON(c.tbAOffJson);
@@ -822,6 +841,7 @@ function loadTriggerConfig(triggers) {
     triggerSignalSources[n] = sigSrc;
     triggerMeterTaps[n]     = t.meterSignalType ?? 0;
     triggerThresholds[n]    = Number.isFinite(t.threshold) ? t.threshold : NaN;
+    triggerCustom[n]        = (t.customOSCPath ?? '') !== '';
     setVal('t' + n + '-sigsrc',  sigSrc);
     setVal('t' + n + '-metertap', t.meterSignalType);
     setVal('t' + n + '-oscpath', t.customOSCPath  ?? '');
@@ -917,11 +937,11 @@ document.getElementById('form-trigger').addEventListener('submit', async e => {
 // Talkback form
 document.getElementById('form-talkback').addEventListener('submit', async e => {
   e.preventDefault();
-  const bfA = document.getElementById('tb-b-follows-a');
+  const tbLink = document.getElementById('tb-link-ab');
   const data = {
     tbEnabled:   document.getElementById('tb-enabled').checked,
     tbMonitor:   parseInt(document.getElementById('tb-monitor').value || '0'),
-    tbBFollowsA: bfA ? bfA.checked : false,
+    tbLinkAB:    tbLink ? tbLink.checked : false,
     tbAOnJson:   JSON.stringify(tbState.aOn),
     tbAOffJson:  JSON.stringify(tbState.aOff),
     tbBOnJson:   JSON.stringify(tbState.bOn),
@@ -1184,6 +1204,7 @@ function updateStatus(d) {
       // and levelFraction) so the display is right even before the config loads.
       if (t.signalSource !== undefined) triggerSignalSources[n] = t.signalSource;
       if (t.meterTap     !== undefined) triggerMeterTaps[n]     = t.meterTap;
+      if (t.custom       !== undefined) triggerCustom[n]        = !!t.custom;
       const bar      = document.getElementById('st-trig-' + n + '-bar');
       const statusEl = document.getElementById('st-trig-' + n + '-status');
 
@@ -1203,15 +1224,16 @@ function updateStatus(d) {
       const lvRaw = parseFloat(t.level    ?? 0);
       const svRaw = parseFloat(t.smoothed ?? 0);
       const src = triggerSignalSources[n] ?? 0;
-      setText('st-trig-' + n + '-level',  formatSignalValue(lvRaw, src));
-      setText('st-trig-' + n + '-smooth', formatSignalValue(svRaw, src));
-      // Threshold triangle marker (Mute has no threshold → no marker). Prefer the
-      // live value from the firmware, else fall back to the loaded config value.
+      const cst = triggerCustom[n];
+      setText('st-trig-' + n + '-level',  formatSignalValue(lvRaw, src, cst));
+      setText('st-trig-' + n + '-smooth', formatSignalValue(svRaw, src, cst));
+      // Threshold triangle marker (Mute has no threshold → no marker, unless it's a
+      // custom path). Prefer the live value from the firmware, else the loaded config.
       const thr = (t.threshold !== undefined) ? parseFloat(t.threshold) : triggerThresholds[n];
-      if (src === 2 || !Number.isFinite(thr)) {
+      if ((src === 2 && !cst) || !Number.isFinite(thr)) {
         setThresh(n, null);
       } else {
-        setThresh(n, levelFraction(n, thr), thr.toFixed(1) + ' dB');
+        setThresh(n, levelFraction(n, thr), cst ? thr.toFixed(3) : thr.toFixed(1) + ' dB');
       }
       if (bar) { bar.classList.remove('disabled'); bar.style.width = (levelFraction(n, lvRaw) * 100) + '%'; }
       if (statusEl) {
@@ -1376,12 +1398,14 @@ function updateOSCMonitor(d) {
     if (n >= NUM_TRIGGERS) return;
     if (m.signalSource !== undefined) triggerSignalSources[n] = m.signalSource;
     if (m.meterTap     !== undefined) triggerMeterTaps[n]     = m.meterTap;
+    if (m.custom       !== undefined) triggerCustom[n]        = !!m.custom;
     const val = parseFloat(m.value ?? 0);
     const st  = MON_STATE[n];
 
     const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     const src = triggerSignalSources[n] ?? 0;
-    setText('mon-value-' + n, formatSignalValue(val, src));
+    const cst = triggerCustom[n];
+    setText('mon-value-' + n, formatSignalValue(val, src, cst));
     setText('mon-path-'  + n, m.address || '—');
     const bar = document.getElementById('mon-bar-' + n);
     if (bar) bar.style.width = (levelFraction(n, val) * 100) + '%';
@@ -1389,9 +1413,9 @@ function updateOSCMonitor(d) {
     if (st.min === null || val < st.min) st.min = val;
     if (st.max === null || val > st.max) st.max = val;
     st.sum += val; st.count++;
-    setText('mon-min-' + n, formatSignalValue(st.min, src));
-    setText('mon-max-' + n, formatSignalValue(st.max, src));
-    setText('mon-avg-' + n, formatSignalValue(st.sum / st.count, src));
+    setText('mon-min-' + n, formatSignalValue(st.min, src, cst));
+    setText('mon-max-' + n, formatSignalValue(st.max, src, cst));
+    setText('mon-avg-' + n, formatSignalValue(st.sum / st.count, src, cst));
 
     // History ring-buffer for graph view (store the 0..1 plot fraction)
     MON_HIST[n].push(levelFraction(n, val));
@@ -1402,7 +1426,7 @@ function updateOSCMonitor(d) {
     if (!log || !log.classList.contains('active')) return;
     const ts  = new Date().toLocaleTimeString('de-DE', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
     const pct = Math.round(levelFraction(n, val) * 100);
-    const displayValue = formatSignalValue(val, src);
+    const displayValue = formatSignalValue(val, src, cst);
     const row = document.createElement('div');
     row.className = 'log-row';
     row.innerHTML = `<span class="log-ts">${ts}</span><span class="log-val">${displayValue}</span>` +

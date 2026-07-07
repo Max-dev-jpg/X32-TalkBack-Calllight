@@ -76,7 +76,7 @@ struct DeviceConfig {
     // Action types: clearSolo | solo | unsolo | mute | unmute | osc | out | forceout
     bool     tbEnabled;
     uint8_t  tbMonitor;       // TB_MONITOR_A / _B / _BOTH
-    bool     tbBFollowsA;     // if true: B activates/releases together with A
+    bool     tbLinkAB;        // if true: A and B are linked — either console button drives both action lists identically
     char     tbAOnJson [TB_ACTION_JSON_LEN];
     char     tbAOffJson[TB_ACTION_JSON_LEN];
     char     tbBOnJson [TB_ACTION_JSON_LEN];

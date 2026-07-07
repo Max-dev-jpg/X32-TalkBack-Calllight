@@ -16,6 +16,8 @@
 void TalkbackEngine::begin() {
     _stateA = false;
     _stateB = false;
+    _outA   = false;
+    _outB   = false;
 
     // Clear any output overrides that TB may have left
     ActionEngine::clearOutput(ACT_SRC_TB_A);
@@ -57,32 +59,38 @@ void TalkbackEngine::sendNoArg(const String& address) {
     sendQuery(address);
 }
 
-// ── State-change handlers ─────────────────────────────────────────────────────
+// ── Output mapping ────────────────────────────────────────────────────────────
 
-void TalkbackEngine::onTalkbackOn(bool isA) {
-    DBG_PRINTF("[TB] TALKBACK %s ON\n", isA ? "A" : "B");
-    ActionEngine::execute(isA ? Config.tbAOnJson : Config.tbBOnJson,
-                          isA ? ACT_SRC_TB_A    : ACT_SRC_TB_B);
-    // B follows A: also activate B when A activates
-    if (isA && Config.tbBFollowsA && !_stateB) {
-        _stateB = true;
-        DBG_PRINTLN("[TB] TALKBACK B ON (follows A)");
-        ActionEngine::execute(Config.tbBOnJson, ACT_SRC_TB_B);
+// Recompute the effective A/B outputs from the raw console button states and run
+// action lists on any edge. When "Link A & B" is on, both outputs mirror the
+// combined (A OR B) state, so either console talkback button drives both action
+// lists identically. When off, each output follows its own button.
+void TalkbackEngine::updateOutputs() {
+    bool desiredA, desiredB;
+    if (Config.tbLinkAB) {
+        desiredA = desiredB = (_stateA || _stateB);
+    } else {
+        desiredA = _stateA;
+        desiredB = _stateB;
     }
+    applyOutput(true,  desiredA);
+    applyOutput(false, desiredB);
 }
 
-void TalkbackEngine::onTalkbackOff(bool isA) {
-    DBG_PRINTF("[TB] TALKBACK %s OFF\n", isA ? "A" : "B");
-    ActionEngine::execute(isA ? Config.tbAOffJson : Config.tbBOffJson,
-                          isA ? ACT_SRC_TB_A      : ACT_SRC_TB_B);
-    // Clear this button's output override regardless of what the action list says
-    ActionEngine::clearOutput(isA ? ACT_SRC_TB_A : ACT_SRC_TB_B);
-    // B follows A: also deactivate B when A deactivates
-    if (isA && Config.tbBFollowsA && _stateB) {
-        _stateB = false;
-        DBG_PRINTLN("[TB] TALKBACK B OFF (follows A)");
-        ActionEngine::execute(Config.tbBOffJson, ACT_SRC_TB_B);
-        ActionEngine::clearOutput(ACT_SRC_TB_B);
+void TalkbackEngine::applyOutput(bool isA, bool desired) {
+    bool& out = isA ? _outA : _outB;
+    if (desired == out) return;
+    out = desired;
+    if (desired) {
+        DBG_PRINTF("[TB] TALKBACK %s ON\n", isA ? "A" : "B");
+        ActionEngine::execute(isA ? Config.tbAOnJson : Config.tbBOnJson,
+                              isA ? ACT_SRC_TB_A     : ACT_SRC_TB_B);
+    } else {
+        DBG_PRINTF("[TB] TALKBACK %s OFF\n", isA ? "A" : "B");
+        ActionEngine::execute(isA ? Config.tbAOffJson : Config.tbBOffJson,
+                              isA ? ACT_SRC_TB_A      : ACT_SRC_TB_B);
+        // Clear this output's override regardless of what the action list says.
+        ActionEngine::clearOutput(isA ? ACT_SRC_TB_A : ACT_SRC_TB_B);
     }
 }
 
@@ -92,8 +100,7 @@ void TalkbackEngine::simulateTalkback(bool isA, bool active) {
     bool& state = isA ? _stateA : _stateB;
     if (active != state) {
         state = active;
-        if (active) onTalkbackOn(isA);
-        else        onTalkbackOff(isA);
+        updateOutputs();
     }
 }
 
@@ -116,7 +123,7 @@ void TalkbackEngine::processIncoming() {
                                            : (msg.floatVal >= 0.5f);
         if (active != _stateA) {
             _stateA = active;
-            if (_stateA) onTalkbackOn(true); else onTalkbackOff(true);
+            updateOutputs();
         }
     }
 
@@ -127,7 +134,7 @@ void TalkbackEngine::processIncoming() {
                                            : (msg.floatVal >= 0.5f);
         if (active != _stateB) {
             _stateB = active;
-            if (_stateB) onTalkbackOn(false); else onTalkbackOff(false);
+            updateOutputs();
         }
     }
 }

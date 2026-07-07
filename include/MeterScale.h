@@ -94,7 +94,10 @@ inline float faderToDb(float v) {
 }
 
 // ── Dispatch by signal source + meter tap (meterSignalType 0=pre,1=gate,2=comp,3=post)
-inline float toDb(uint8_t signalSource, uint8_t meterTap, float raw) {
+// custom=true → a user-supplied OSC path (pan, EQ freq, …): the raw 0..1 value is
+// used linearly, in its own 0..1 domain, instead of any dB taper.
+inline float toDb(uint8_t signalSource, uint8_t meterTap, float raw, bool custom = false) {
+    if (custom) return constrain(raw, 0.0f, 1.0f);
     switch (signalSource) {
         case SIG_FADER: return faderToDb(raw);
         case SIG_METER:
@@ -109,14 +112,16 @@ inline float toDb(uint8_t signalSource, uint8_t meterTap, float raw) {
 // Minimum ("quiet / no reduction / muted") and maximum ("loud / full reduction /
 // unmuted") of each source, used to clamp the hysteresis release point and to
 // pick a polarity-aware at-rest value.
-inline float domainMin(uint8_t signalSource, uint8_t meterTap) {
+inline float domainMin(uint8_t signalSource, uint8_t meterTap, bool custom = false) {
+    if (custom)                    return 0.0f;                        // custom path: linear 0..1
     if (signalSource == SIG_MUTE)  return 0.0f;                        // muted
     if (signalSource == SIG_METER)
         return (meterTap == 1 || meterTap == 2) ? 0.0f                 // GR: no reduction
                                                 : METER_LEVEL_FLOOR;   // level: -60 dB
     return DB_FLOOR;                                                   // fader: -90 dB
 }
-inline float domainMax(uint8_t signalSource, uint8_t meterTap) {
+inline float domainMax(uint8_t signalSource, uint8_t meterTap, bool custom = false) {
+    if (custom)                    return 1.0f;                        // custom path: linear 0..1
     if (signalSource == SIG_MUTE)  return 1.0f;                        // unmuted
     if (signalSource == SIG_METER) {
         if (meterTap == 1) return 60.0f;                              // gate GR (max)
@@ -131,9 +136,9 @@ inline float domainMax(uint8_t signalSource, uint8_t meterTap) {
 //    threshold, so it rests at the domain minimum; an inverted trigger fires
 //    below the threshold, so it rests at the domain maximum. Without this an
 //    inverted trigger would start active after a reboot.
-inline float restLevel(uint8_t signalSource, uint8_t meterTap, bool invert) {
-    return invert ? domainMax(signalSource, meterTap)
-                  : domainMin(signalSource, meterTap);
+inline float restLevel(uint8_t signalSource, uint8_t meterTap, bool invert, bool custom = false) {
+    return invert ? domainMax(signalSource, meterTap, custom)
+                  : domainMin(signalSource, meterTap, custom);
 }
 
 } // namespace MeterScale

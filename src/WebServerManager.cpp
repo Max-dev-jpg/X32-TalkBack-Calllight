@@ -58,6 +58,7 @@ static String buildStatusJSON() {
         t["signalSource"] = Config.triggers[n].signalSource;
         t["meterTap"]     = Config.triggers[n].meterSignalType;
         t["threshold"]    = Config.triggers[n].threshold;   // shown on the status card
+        t["custom"]       = Config.triggers[n].customOSCPath[0] != '\0'; // linear 0..1 scaling
     }
 
     // Backward-compat fields (trigger 0)
@@ -165,7 +166,7 @@ static String buildConfigJSON(bool includeNetwork = true, bool pretty = false) {
     // Talkback Engine
     doc["tbEnabled"]    = c.tbEnabled;
     doc["tbMonitor"]    = c.tbMonitor;
-    doc["tbBFollowsA"]  = c.tbBFollowsA;
+    doc["tbLinkAB"]     = c.tbLinkAB;
     emitActionField(doc.as<JsonObject>(), "tbAOnJson",  c.tbAOnJson,  pretty);
     emitActionField(doc.as<JsonObject>(), "tbAOffJson", c.tbAOffJson, pretty);
     emitActionField(doc.as<JsonObject>(), "tbBOnJson",  c.tbBOnJson,  pretty);
@@ -294,7 +295,7 @@ static bool applyConfigJSON(const String& body) {
     // Talkback Engine
     if (doc.containsKey("tbEnabled"))   c.tbEnabled   = doc["tbEnabled"];
     if (doc.containsKey("tbMonitor"))   c.tbMonitor   = doc["tbMonitor"];
-    if (doc.containsKey("tbBFollowsA")) c.tbBFollowsA = doc["tbBFollowsA"];
+    if (doc.containsKey("tbLinkAB"))    c.tbLinkAB    = doc["tbLinkAB"];
     readActionField(doc.as<JsonObject>(), "tbAOnJson",  c.tbAOnJson,  sizeof(c.tbAOnJson));
     readActionField(doc.as<JsonObject>(), "tbAOffJson", c.tbAOffJson, sizeof(c.tbAOffJson));
     readActionField(doc.as<JsonObject>(), "tbBOnJson",  c.tbBOnJson,  sizeof(c.tbBOnJson));
@@ -561,6 +562,7 @@ void WebServerManager::broadcastOSCMonitor() {
         m["enabled"]   = tc.enabled;
         m["signalSource"] = tc.signalSource;   // so the UI formats mute vs dB correctly
         m["meterTap"]     = tc.meterSignalType;
+        m["custom"]       = tc.customOSCPath[0] != '\0'; // linear 0..1 scaling
     }
 
     String out;

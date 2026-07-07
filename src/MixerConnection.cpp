@@ -101,7 +101,8 @@ void MixerConnection::rebuildPaths() {
         // Start every trigger at its polarity-aware at-rest level, so before the
         // first real value arrives it reads INACTIVE (a fader/mute trigger would
         // otherwise read a stale 0 and an inverted one would fire on boot).
-        _triggerLevels[n] = MeterScale::restLevel(t.signalSource, t.meterSignalType, t.invert);
+        _triggerLevels[n] = MeterScale::restLevel(t.signalSource, t.meterSignalType, t.invert,
+                                                  t.customOSCPath[0] != '\0');
         if (t.signalSource == SIG_METER) {
             // Meters use no _triggerPaths entry; the fader/mute matcher ignores
             // them. meterRoute() picks the bank + index. /meters/6 has ONE
@@ -355,9 +356,11 @@ void MixerConnection::processIncoming() {
             } else if (msg.typeTag == 'i') {
                 raw = (float)msg.intVal;                 // /mix/on: 1=active, 0=muted
             }
-            // Fader → dB (X32 taper); mute passes through 0/1.
+            // Fader → dB (X32 taper); mute passes through 0/1. A custom OSC path
+            // (pan, EQ freq, …) is used linearly in a 0..1 domain instead.
+            bool custom = Config.triggers[n].customOSCPath[0] != '\0';
             _triggerLevels[n] = MeterScale::toDb(
-                Config.triggers[n].signalSource, 0, constrain(raw, 0.0f, 1.0f));
+                Config.triggers[n].signalSource, 0, constrain(raw, 0.0f, 1.0f), custom);
         }
     }
 }

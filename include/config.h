@@ -67,6 +67,9 @@
 // a meaningful threshold, only the quiet extreme. Raise it if an idle compressor
 // still triggers at threshold 0 (check the OSC monitor for its resting dB value).
 #define TRIG_FLOOR_DEADBAND_DB   0.05f
+// Same idea for a custom-OSC-path trigger, whose value lives in a linear 0..1
+// domain instead of dB — the dB deadband above is meaningless in that range.
+#define TRIG_FLOOR_DEADBAND_LINEAR  0.005f
 
 // ── Flash modes ───────────────────────────────────────────────────────────────
 #define FLASH_SOLID    0

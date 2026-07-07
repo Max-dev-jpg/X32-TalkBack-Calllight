@@ -90,7 +90,7 @@ void ConfigManager::applyDefaults()
     // Talkback Engine
     _cfg.tbEnabled    = false;
     _cfg.tbMonitor    = TB_MONITOR_A;
-    _cfg.tbBFollowsA  = false;
+    _cfg.tbLinkAB     = false;
     _cfg.tbAOnJson[0]  = '\0';
     _cfg.tbAOffJson[0] = '\0';
     _cfg.tbBOnJson[0]  = '\0';

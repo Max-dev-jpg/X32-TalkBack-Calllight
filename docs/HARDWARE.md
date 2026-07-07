@@ -69,8 +69,8 @@ GND   ─────────── GND                   │   NO  ──�
 
 ```
 ESP32                        Warning Lamp (12 V DC)
-GPIO 2 ─── 1 kΩ ──┬── Base
-                   │
+GPIO 2 ─── 1 kΩ ──────┬── Base
+                      │
 GND    ──────────── Emitter ─── GND ─── Lamp (–)
                    Collector ────────── Lamp (+)
 12 V   ──────────────────────────────── PSU (+)
@@ -81,9 +81,8 @@ GND    ──────────── Emitter ─── GND ─── Lamp
 ### Option C: WS2812B LED Strip
 
 ```
-5 V PSU (+) ─── 1000 µF capacitor ─── WS2812B (+)
-5 V PSU (–) ─────────────────────── WS2812B (–)
-ESP32 GPIO 4 ─── 100 Ω ────────── WS2812B DIN
+5 V PSU (VCC) ────────────────────── WS2812B (+)
+ESP32 GPIO 4 ─── 100 Ω ─────────── WS2812B DIN
 ESP32 GND ──────────────────────── WS2812B GND (common ground!)
 ```
 
@@ -91,6 +90,13 @@ ESP32 GND ───────────────────────�
 > Power long strips (>30 LEDs) from the strip's end, not only the beginning.
 
 ---
+
+**Decoupling capacitors:**
+
+- Place the following capacitors directly at the ESP32 chip 3.3 V supply:
+  - **10 µF ceramic capacitor**
+  - **100 nF ceramic capacitor**
+- Place a **100 nF ceramic capacitor** directly across the **5 V rail of the ESP32 DevKit board**.
 
 ## Power Requirements
 
